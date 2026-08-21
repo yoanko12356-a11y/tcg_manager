@@ -10,33 +10,38 @@ from bs4 import BeautifulSoup
 DATA_DIR = "data"
 ALL_CARDS_PATH = "all_cards.json"
 
+import re
+
 def clean_search_query(card_name):
     """
-    カード名（例: "流星アーシュ＜私が主役⁉＞(DM26EX3 ㊙2超/㊙20)"）から
-    「カードのベース名」と「型番（㊙→秘に変換）」を抽出して、
-    カードラッシュの検索に最適な形（例: "流星アーシュ＜私が主役⁉＞ 秘2超/秘20"）にする
+    カード名から「カードのベース名」と「型番」を抽出して整理する。
+    ツインパクトカードのスラッシュ前後や、㊙の変換にも対応した最新版。
     """
-    # 括弧の中身（型番部分）を取得
-    match = re.search(r'\(([^)]+)\)', card_name)
-    
-    # 括弧より前の部分（カード名ベース）を取得
+    # 1. 括弧より前の部分（カード名ベース）を取得
     base_name = re.sub(r'\s*\(.*?\)', '', card_name).strip()
+    
+    # 2. ★スラッシュ前後の余計なスペースを削除（例: "A / B" -> "A/B"）
+    base_name = re.sub(r'\s*/\s*', '/', base_name)
+    
+    # 3. 括弧の中身（型番部分）を取得
+    match = re.search(r'\(([^)]+)\)', card_name)
     
     if not match:
         return base_name
     
-    inner_text = match.group(1).strip() # 例: "DM26EX3 ㊙2超/㊙20"
+    inner_text = match.group(1).strip()
     
-    # 「㊙」を「秘」に置き換える
+    # 4. 「㊙」を「秘」に置き換える
     inner_text = inner_text.replace("㊙", "秘")
     
     parts = inner_text.split()
     if len(parts) >= 2:
-        # 0番目（パック名コード：DM26EX3）を除外して、1番目以降の番号部分だけを取り出す
-        number_part = " ".join(parts[1:]) # 例: "秘2超/秘20"
+        # パック名コード（0番目）を除外し、1番目以降の番号部分だけを取り出す
+        number_part = " ".join(parts[1:])
         return f"{base_name} {number_part}"
         
-    return card_name.replace("㊙", "秘")
+    # 括弧の中身が1つの単語しかない場合などのフォールバック
+    return f"{base_name} {inner_text}"
 
 def format_torecolo_code(card_name):
     """
