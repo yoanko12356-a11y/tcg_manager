@@ -124,15 +124,10 @@ async def fetch_torecolo_price(session, torecolo_code):
 # ... (上のコードのインポート部分は同じ)
 
 async def process_card(session, card, index, total_count, date_str, results_dict, semaphore):
-    # 処理の開始時に1枚目の判定を入れるよ！
-    if index == 1:
-        print(f"🚀 処理開始！全 {total_count} 枚の取得を開始するよ！")
-    
-    # 100枚ごとのログ判定（1枚目はここで確実に引っかかるようにする）
+    # 1枚目と、100枚ごとの節目で「〇枚目到達」とだけ出す
     if (index - 1) % 100 == 0:
-        card_name = card.get("name", "Unknown")
-        torecolo_code = format_torecolo_code(card_name)
-        print(f"📊 進捗: {index} / {total_count} 枚目 | 処理中: {card_name} (コード: {torecolo_code})")
+        print(f"📊 {index} 枚目到達 ({total_count} 枚中)")
+    
     async with semaphore:
         card_name = card.get("name", "Unknown")
         search_query = card_name.split("(")[0].strip()
