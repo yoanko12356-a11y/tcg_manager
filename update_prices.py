@@ -12,29 +12,31 @@ ALL_CARDS_PATH = "all_cards.json"
 
 def clean_search_query(card_name):
     """
-    カード名から括弧内のコード部分を抽出し、
-    カードラッシュの検索に適した形式（例: 「㊙」を「秘」に置換、スペース調整）に整える
+    カード名（例: "流星アーシュ＜私が主役⁉＞(DM26EX3 ㊙2超/㊙20)"）から
+    「カードのベース名」と「型番（㊙→秘に変換）」を抽出して、
+    カードラッシュの検索に最適な形（例: "流星アーシュ＜私が主役⁉＞ 秘2超/秘20"）にする
     """
+    # 括弧の中身（型番部分）を取得
     match = re.search(r'\(([^)]+)\)', card_name)
+    
+    # 括弧より前の部分（カード名ベース）を取得
+    base_name = re.sub(r'\s*\(.*?\)', '', card_name).strip()
+    
     if not match:
-        return card_name.strip()
+        return base_name
     
     inner_text = match.group(1).strip() # 例: "DM26EX3 ㊙2超/㊙20"
     
-    # ★ 「㊙」を「秘」に置き換える！
+    # 「㊙」を「秘」に置き換える
     inner_text = inner_text.replace("㊙", "秘")
     
-    # パックコード（例: DM26EX3）と番号部分（例: 14/100 や 秘2超/秘20）を分ける
     parts = inner_text.split()
     if len(parts) >= 2:
-        pack_code = parts[0] # "DM26EX3"
-        number_part = parts[1] # "秘2超/秘20"
+        # 0番目（パック名コード：DM26EX3）を除外して、1番目以降の番号部分だけを取り出す
+        number_part = " ".join(parts[1:]) # 例: "秘2超/秘20"
+        return f"{base_name} {number_part}"
         
-        # カードラッシュはパックコードと番号の間のスペースを詰めたほうがヒットしやすい（例: DM26EX314/100）
-        # なので、くっつけた文字列を返すようにするよ！
-        return f"{pack_code}{number_part}"
-        
-    return inner_text.replace(" ", "")
+    return card_name.replace("㊙", "秘")
 
 def format_torecolo_code(card_name):
     """
