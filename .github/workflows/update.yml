@@ -5,7 +5,6 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
-# ↓↓↓ ここに「書き込み権限」の許可を追加するよ！ ↓↓↓
 permissions:
   contents: write
 
@@ -21,6 +20,9 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: 依存ライブラリのインストール
+        run: pip install aiohttp beautifulsoup4 requests
+
       - name: 価格更新スクリプトの実行
         run: python update_prices.py
 
@@ -28,6 +30,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.io"
-          git add prices_*.json
+          git add data/prices_*.json
           git commit -m "Auto-update monthly price data: $(date +'%Y-%m-%d')" || exit 0
           git push

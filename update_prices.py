@@ -1,49 +1,154 @@
-import json
 import os
+import json
 from datetime import datetime
+import re
+import urllib.parse
+import asyncio
+import aiohttp
+from bs4 import BeautifulSoup
 
-# 1. 今日の日付から「年月」を自動取得する（例: "2026_08"）
-now = datetime.now()
-year_month_str = now.strftime("%Y_%m")
-today_str = now.strftime("%Y-%m-%d")
+DATA_DIR = "data"
+ALL_CARDS_PATH = "all_cards.json" # 23310枚のカードリスト
 
-filename = f"prices_{year_month_str}.json"
-script_dir = os.path.dirname(os.path.abspath(__file__))
-json_path = os.path.join(script_dir, filename)
+def clean_search_query(query):
+    cleaned = re.sub(r'\s*/\s*', '/', query)
+    return cleaned
 
-# 2. すでに今月のファイルが存在するか確認し、なければ新しく作る
-if os.path.exists(json_path):
-    with open(json_path, 'r', encoding='utf-8') as f:
-        monthly_data = json.load(f)
-else:
-    monthly_data = {
-        "year": now.year,
-        "month": now.month,
-        "cards": {}
-    }
+async def fetch_card_rush_price(session, search_query):
+    """カードラッシュの非同期価格取得"""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        safe_query = clean_search_query(search_query)
+        encoded_query = urllib.parse.quote(safe_query)
+        search_url = f"https://cardrush-dm.jp/product-list?keyword={encoded_query}&Submit=検索"
+        
+        async with session.get(search_url, headers=headers, timeout=10) as response:
+            if response.status != 200:
+                return "×"
+            html = await response.text()
+            
+        soup = BeautifulSoup(html, 'html.parser')
+        detail_url = None
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if "/product/" in href:
+                detail_url = "https://cardrush-dm.jp" + href if not href.startswith("http") else href
+                break
+                
+        if not detail_url:
+            return "×"
+            
+        async with session.get(detail_url, headers=headers, timeout=10) as response:
+            if response.status != 200:
+                return "×"
+            detail_html = await response.text()
+            
+        detail_soup = BeautifulSoup(detail_html, 'html.parser')
+        price_elem = detail_soup.select_one("#pricech")
+        if price_elem:
+            price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
+            return int(price_text)
+            
+        return "×"
+    except Exception:
+        return "×"
 
-# 3. 価格データを更新・追加するサンプル処理
-# （※実際はここでショップの価格スクレイピング結果などをここに入れるよ！）
-sample_updates = {
-    "card_001": {"buy": 1500, "sell": 2200},
-    "card_002": {"buy": 800, "sell": 1200}
-}
+async def fetch_torecolo_price(session, search_code):
+    """トレコロの非同期価格取得（search_codeを使用）"""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        search_url = f"https://www.torecolo.jp/shop/goods/search.aspx?ct2=10&search=x&keyword={search_code}"
+        
+        async with session.get(search_url, headers=headers, timeout=10) as response:
+            if response.status != 200:
+                return "×"
+            html = await response.text()
+            
+        soup = BeautifulSoup(html, 'html.parser')
+        detail_url = None
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if "/shop/g/g" in href:
+                detail_url = "https://www.torecolo.jp" + href if not href.startswith("http") else href
+                break
+                
+        if not detail_url:
+            return "×"
+            
+        async with session.get(detail_url, headers=headers, timeout=10) as response:
+            if response.status != 200:
+                return "×"
+            detail_html = await response.text()
+            
+        detail_soup = BeautifulSoup(detail_html, 'html.parser')
+        price_elem = detail_soup.find(class_="price") or detail_soup.find(id="price")
+        if price_elem:
+            price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
+            price_match = re.search(r'\d+', price_text)
+            if price_match:
+                return int(price_match.group())
+                
+        return "×"
+    except Exception:
+        return "×"
 
-for card_id, prices in sample_updates.items():
-    if card_id not in monthly_data["cards"]:
-        monthly_data["cards"][card_id] = {
-            "history": []
+async def process_card(session, card, date_str, results_dict, semaphore):
+    """同時接続数をコントロールしながら安全に処理する"""
+    async with semaphore:
+        card_name = card["name"]
+        search_query = card_name.split("(")[0].strip() # 名前の調整が必要ならここで
+        search_code = card.get("search_code", "")
+        
+        # カードラッシュとトレコロを並行取得
+        rush_task = fetch_card_rush_price(session, search_query)
+        torecolo_task = fetch_torecolo_price(session, search_code)
+        
+        rush_price, torecolo_price = await asyncio.gather(rush_task, torecolo_task)
+        
+        if card_name not in results_dict:
+            results_dict[card_name] = {}
+            
+        results_dict[card_name][date_str] = {
+            "cardrush": rush_price,
+            "torecolo": torecolo_price
         }
+
+async def main():
+    os.makedirs(DATA_DIR, exist_ok=True)
     
-    # 履歴の配列に今日のデータを追加
-    monthly_data["cards"][card_id]["history"].append({
-        "date": today_str,
-        "buy": prices["buy"],
-        "sell": prices["sell"]
-    })
+    if not os.path.exists(ALL_CARDS_PATH):
+        print(f"Error: {ALL_CARDS_PATH} が見つからないよ！")
+        return
 
-# 4. 今月のJSONファイルに上書き保存
-with open(json_path, 'w', encoding='utf-8') as f:
-    json.dump(monthly_data, f, ensure_ascii=False, indent=2)
+    with open(ALL_CARDS_PATH, "r", encoding="utf-8") as f:
+        all_cards = json.load(f)
 
-print(f"✨ 成功！ {filename} を更新したよ！")
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    year_month_str = now.strftime("%Y_%m")
+    
+    json_filename = os.path.join(DATA_DIR, f"prices_{year_month_str}.json")
+    
+    if os.path.exists(json_filename):
+        with open(json_filename, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                data = {}
+    else:
+        data = {}
+
+    # サーバーに負荷をかけすぎないよう、同時に走るリクエスト数を制限（例: 同時10件まで）
+    semaphore = asyncio.Semaphore(10)
+
+    async with aiohttp.ClientSession() as session:
+        tasks = [process_card(session, card, date_str, data, semaphore) for card in all_cards]
+        await asyncio.gather(*tasks)
+
+    with open(json_filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+        
+    print(f"\nSuccessfully updated prices in {json_filename}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
