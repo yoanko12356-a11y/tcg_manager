@@ -129,17 +129,19 @@ async def fetch_torecolo_price(session, torecolo_code):
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # ★ 売り切れ・在庫0の表記やクラスがあったら絶対に価格を取らずに「×」を返す！
+        # 1. ページ全体に「品切れ」「SOLD OUT」「売り切れ」の文字があれば即「×」
         page_text = detail_soup.get_text()
         if "品切れ" in page_text or "SOLD OUT" in page_text or "売り切れ" in page_text:
             return "×"
             
+        # 2. 在庫数の要素を確認して、もし「0」が含まれていたら即「×」
         stock_elem = detail_soup.find(class_="stock-status--zero") or detail_soup.find(class_="block-products--product-stock")
         if stock_elem:
             stock_text = stock_elem.get_text(strip=True)
             if "0" in stock_text:
                 return "×"
 
+        # 3. ここまで来て初めて「在庫がある」とみなして価格を取得する！
         price_elem = detail_soup.find(class_="price") or detail_soup.find(id="price")
         if price_elem:
             price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
