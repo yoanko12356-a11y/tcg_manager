@@ -60,7 +60,7 @@ def format_torecolo_code(card_name):
     return raw_code.replace(" ", "").replace("/", "-")
 
 async def fetch_card_rush_price(session, search_query):
-    """カードラッシュの非同期価格取得"""
+    """カードラッシュの非同期価格取得（在庫1以上限定版）"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         safe_query = clean_search_query(search_query)
@@ -89,10 +89,30 @@ async def fetch_card_rush_price(session, search_query):
             detail_html = await response.text()
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
-        price_elem = detail_soup.select_one("#pricech")
-        if price_elem:
-            price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
-            return int(price_text)
+        
+        # 1. ページ全体に売り切れ系の文字がないかチェック
+        page_text = detail_soup.get_text()
+        if "SOLD OUT" in page_text or "品切れ" in page_text or "売り切れ" in page_text:
+            return "×"
+            
+        # 2. カードラッシュの在庫表示部分から「数量」や「在庫」の数値をチェック
+        # （カードラッシュの在庫要素クラスやテキスト周辺を確認して判定）
+        stock_elem = detail_soup.find(class_=lambda x: x and ('stock' in x or 'quantity' in x)) or detail_soup.select_one(".cart-in")
+        
+        # もし「カートに入れる」ボタン自体がない、または在庫が0の表記があれば弾く
+        # カートボタンが無い＝買えない状態のことが多いよ
+        has_stock = True
+        cart_btn = detail_soup.select_one(".cart-in, input[value*='カート'], button[class*='cart']")
+        if not cart_btn:
+            has_stock = False
+            
+        if has_stock:
+            price_elem = detail_soup.select_one("#pricech")
+            if price_elem:
+                price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
+                price_match = re.search(r'\d+', price_text)
+                if price_match:
+                    return int(price_match.group())
             
         return "×"
     except Exception:
