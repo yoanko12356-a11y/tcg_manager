@@ -12,24 +12,29 @@ ALL_CARDS_PATH = "all_cards.json"
 
 def clean_search_query(card_name):
     """
-    カード名（例: "流星アーシュ＜私が主役⁉＞(DM26EX3 ㊙2超/㊙20)"）から
-    パック名などのコード部分を取り除き、検索用クエリを整える
+    カード名から括弧内のコード部分を抽出し、
+    カードラッシュの検索に適した形式（例: 「㊙」を「秘」に置換、スペース調整）に整える
     """
     match = re.search(r'\(([^)]+)\)', card_name)
     if not match:
         return card_name.strip()
     
     inner_text = match.group(1).strip() # 例: "DM26EX3 ㊙2超/㊙20"
+    
+    # ★ 「㊙」を「秘」に置き換える！
+    inner_text = inner_text.replace("㊙", "秘")
+    
+    # パックコード（例: DM26EX3）と番号部分（例: 14/100 や 秘2超/秘20）を分ける
     parts = inner_text.split()
-    
-    # アルファベットと数字が混ざったパックコード（例: DM26EX3）を除外する
-    remaining_parts = [p for p in parts if not re.match(r'^[A-Z0-9]+$', p, re.IGNORECASE)]
-    base_name = card_name.split("(")[0].strip()
-    
-    if remaining_parts:
-        return f"{base_name} {' '.join(remaining_parts)}"
-    else:
-        return base_name
+    if len(parts) >= 2:
+        pack_code = parts[0] # "DM26EX3"
+        number_part = parts[1] # "秘2超/秘20"
+        
+        # カードラッシュはパックコードと番号の間のスペースを詰めたほうがヒットしやすい（例: DM26EX314/100）
+        # なので、くっつけた文字列を返すようにするよ！
+        return f"{pack_code}{number_part}"
+        
+    return inner_text.replace(" ", "")
 
 def format_torecolo_code(card_name):
     """
@@ -60,7 +65,7 @@ def format_torecolo_code(card_name):
     return raw_code.replace(" ", "").replace("/", "-")
 
 async def fetch_card_rush_price(session, search_query):
-    """カードラッシュの非同期価格取得"""
+    """カードラッシュの非同期価格取得（HTML構造対応版）"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         safe_query = clean_search_query(search_query)
@@ -74,6 +79,8 @@ async def fetch_card_rush_price(session, search_query):
             
         soup = BeautifulSoup(html, 'html.parser')
         detail_url = None
+        
+        # 検索結果から商品の詳細ページURLを探す
         for link in soup.find_all('a', href=True):
             href = link['href']
             if "/product/" in href:
@@ -89,11 +96,32 @@ async def fetch_card_rush_price(session, search_query):
             detail_html = await response.text()
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
+        
+        # ★ 画像のHTML構造に合わせた在庫数チェック！
+        # <p class="stock">在庫数 192点</p> などを探すよ
+        stock_elem = detail_soup.find("p", class_="stock")
+        if stock_elem:
+            stock_text = stock_elem.get_text(strip=True)
+            match_stock = re.search(r'\d+', stock_text)
+            if match_stock:
+                stock_count = int(match_stock.group())
+                # 在庫が「0」だったら即「×」を返す！
+                if stock_count == 0:
+                    return "×"
+        else:
+            # 在庫要素が見つからない場合も安全のため「×」にするか、カートボタンを見る
+            cart_btn = detail_soup.select_one(".cart-in")
+            if not cart_btn:
+                return "×"
+
+        # 在庫が1以上ある場合のみ価格を取得する
         price_elem = detail_soup.select_one("#pricech")
         if price_elem:
             price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
-            return int(price_text)
-            
+            price_match = re.search(r'\d+', price_text)
+            if price_match:
+                return int(price_match.group())
+                
         return "×"
     except Exception:
         return "×"
