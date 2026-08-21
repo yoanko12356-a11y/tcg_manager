@@ -1,0 +1,29 @@
+name: Auto Update Monthly Prices
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 毎日深夜0時（UTC）に実行
+  workflow_dispatch:      # 自分の手動ボタンでも動かせるようにする
+
+jobs:
+  update-prices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリのコードをクラウドに呼び出す
+        uses: actions/checkout@v4
+
+      - name: Python環境の準備
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 価格更新スクリプトの実行
+        run: python update_prices.py
+
+      - name: 変更された月別JSONをGitHubに自動保存（コミット）する
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.io"
+          git add prices_*.json
+          git commit -m "Auto-update monthly price data: $(date +'%Y-%m-%d')" || exit 0
+          git push
