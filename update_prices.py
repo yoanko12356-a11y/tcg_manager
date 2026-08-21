@@ -127,7 +127,7 @@ async def fetch_card_rush_price(session, search_query):
         return "×", 0
 
 async def fetch_torecolo_price(session, torecolo_code):
-    """トレコロの非同期価格・在庫数取得（セット返却版）"""
+    """トレコロの非同期価格・在庫数取得（正確な在庫判定版）"""
     try:
         if not torecolo_code:
             return "×", 0
@@ -162,20 +162,31 @@ async def fetch_torecolo_price(session, torecolo_code):
         if "品切れ" in page_text or "SOLD OUT" in page_text or "売り切れ" in page_text:
             return "×", 0
             
-        # 2. 在庫数の要素から「数字」を正確に抜き出す
-        stock_elem = detail_soup.find(class_="stock-status--zero") or detail_soup.find(class_="block-products--product-stock") or detail_soup.find(class_=lambda x: x and 'stock' in x)
-        
+        # 2. ★ 正確な在庫数の取得（data-stock-count や <span> の数字を狙う）
         stock_count = 0
         has_stock = False
-        if stock_elem:
-            stock_text = stock_elem.get_text(strip=True)
-            match_stock = re.search(r'\d+', stock_text)
-            if match_stock:
-                stock_count = int(match_stock.group())
+        
+        select_elem = detail_soup.find(class_="block-products--product-sale-cart-quantity-select")
+        if select_elem and select_elem.has_attr("data-stock-count"):
+            try:
+                stock_count = int(select_elem["data-stock-count"])
                 if stock_count > 0:
                     has_stock = True
+            except ValueError:
+                pass
+                
+        if not has_stock:
+            stock_elem = detail_soup.find(class_="block-products--product-stock")
+            if stock_elem:
+                span_elem = stock_elem.find("span")
+                target_text = span_elem.get_text(strip=True) if span_elem else stock_elem.get_text(strip=True)
+                match_stock = re.search(r'\d+', target_text)
+                if match_stock:
+                    stock_count = int(match_stock.group())
+                    if stock_count > 0:
+                        has_stock = True
 
-        # 3. 在庫が1以上あると確証できた場合のみ、価格を取得しに行く！
+        # 3. 在庫が1以上と確証できた場合のみ、価格を取得しに行く！
         if has_stock:
             price_elem = detail_soup.find(class_="price") or detail_soup.find(id="price")
             if price_elem:
@@ -183,7 +194,6 @@ async def fetch_torecolo_price(session, torecolo_code):
                 price_match = re.search(r'\d+', price_text)
                 if price_match:
                     price = int(price_match.group())
-                    # ★ 価格と在庫数をペアで返す！
                     return price, stock_count
                 
         return "×", 0
