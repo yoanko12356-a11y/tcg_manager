@@ -129,26 +129,35 @@ async def fetch_torecolo_price(session, torecolo_code):
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # 1. ページ全体に「品切れ」「SOLD OUT」「売り切れ」の文字があれば即「×」
+        # 1. まずページ全体に売り切れ系の文字がないか最終確認
         page_text = detail_soup.get_text()
         if "品切れ" in page_text or "SOLD OUT" in page_text or "売り切れ" in page_text:
             return "×"
             
-        # 2. 在庫数の要素を確認して、もし「0」が含まれていたら即「×」
-        stock_elem = detail_soup.find(class_="stock-status--zero") or detail_soup.find(class_="block-products--product-stock")
+        # 2. 在庫数の要素から「数字」を正確に抜き出す
+        stock_elem = detail_soup.find(class_="stock-status--zero") or detail_soup.find(class_="block-products--product-stock") or detail_soup.find(class_=lambda x: x and 'stock' in x)
+        
+        has_stock = False
         if stock_elem:
             stock_text = stock_elem.get_text(strip=True)
-            if "0" in stock_text:
-                return "×"
+            # テキストから数字を抽出（例: "3点" -> 3）
+            match_stock = re.search(r'\d+', stock_text)
+            if match_stock:
+                stock_count = int(match_stock.group())
+                # ★ 在庫数が「1以上」のときだけフラグを立てる！
+                if stock_count > 0:
+                    has_stock = True
 
-        # 3. ここまで来て初めて「在庫がある」とみなして価格を取得する！
-        price_elem = detail_soup.find(class_="price") or detail_soup.find(id="price")
-        if price_elem:
-            price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
-            price_match = re.search(r'\d+', price_text)
-            if price_match:
-                return int(price_match.group())
+        # 3. 在庫が1以上あると確証できた場合のみ、価格を取得しに行く！
+        if has_stock:
+            price_elem = detail_soup.find(class_="price") or detail_soup.find(id="price")
+            if price_elem:
+                price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
+                price_match = re.search(r'\d+', price_text)
+                if price_match:
+                    return int(price_match.group())
                 
+        # 在庫がない、または価格が取れなかった場合はすべて「×」
         return "×"
     except Exception:
         return "×"
@@ -190,7 +199,7 @@ async def main():
     with open(ALL_CARDS_PATH, "r", encoding="utf-8") as f:
         all_cards = json.load(f)
 
-    all_cards = all_cards[:20]
+    all_cards = all_cards[:40]
 
     total_cards = len(all_cards)
     print(f"=== 全 {total_cards} 枚の価格取得を開始するよ（100枚ごとにログ出力） ===")
