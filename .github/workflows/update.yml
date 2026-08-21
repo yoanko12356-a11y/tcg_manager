@@ -2,8 +2,12 @@ name: Auto Update Monthly Prices
 
 on:
   schedule:
-    - cron: '0 0 * * *' # 毎日深夜0時（UTC）に実行
-  workflow_dispatch:      # 自分の手動ボタンでも動かせるようにする
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+# ↓↓↓ ここに「書き込み権限」の許可を追加するよ！ ↓↓↓
+permissions:
+  contents: write
 
 jobs:
   update-prices:
