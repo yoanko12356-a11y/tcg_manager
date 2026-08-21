@@ -67,7 +67,7 @@ def format_torecolo_code(card_name):
     return raw_code.replace(" ", "").replace("/", "-")
 
 async def fetch_card_rush_price(session, search_query):
-    """カードラッシュの非同期価格取得（HTML構造対応版）"""
+    """カードラッシュの非同期価格取得（正確な在庫数判定版）"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         safe_query = clean_search_query(search_query)
@@ -99,24 +99,22 @@ async def fetch_card_rush_price(session, search_query):
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # ★ 画像のHTML構造に合わせた在庫数チェック！
-        # <p class="stock">在庫数 192点</p> などを探すよ
-        stock_elem = detail_soup.find("p", class_="stock")
+        # ★ 在庫数を正確にクラスから取得して数値化する
+        stock_elem = detail_soup.find(class_=lambda x: x and ('stock' in x))
         if stock_elem:
             stock_text = stock_elem.get_text(strip=True)
             match_stock = re.search(r'\d+', stock_text)
             if match_stock:
                 stock_count = int(match_stock.group())
-                # 在庫が「0」だったら即「×」を返す！
+                # 在庫数が「0」だったら即「×」を返す！
                 if stock_count == 0:
                     return "×"
-        else:
-            # 在庫要素が見つからない場合も安全のため「×」にするか、カートボタンを見る
-            cart_btn = detail_soup.select_one(".cart-in")
-            if not cart_btn:
+            else:
                 return "×"
+        else:
+            return "×"
 
-        # 在庫が1以上ある場合のみ価格を取得する
+        # 在庫数が1以上と確認できた場合のみ、価格を取得する
         price_elem = detail_soup.select_one("#pricech")
         if price_elem:
             price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
