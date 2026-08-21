@@ -176,13 +176,15 @@ async def main():
         data = {}
 
     semaphore = asyncio.Semaphore(5)
+    # ここで print_lock を定義するのを忘れてたよ！
+    print_lock = asyncio.Lock()
 
     async with aiohttp.ClientSession() as session:
         tasks = [
-            process_card(session, card, i + 1, total_cards, date_str, data, semaphore)
+            # ここで print_lock を追加して渡すよ！
+            process_card(session, card, i + 1, total_cards, date_str, data, semaphore, print_lock)
             for i, card in enumerate(all_cards)
         ]
-        # tqdmや細かい個別ログを排して一気に非同期処理を走らせる
         await asyncio.gather(*tasks)
 
     with open(json_filename, "w", encoding="utf-8") as f:
