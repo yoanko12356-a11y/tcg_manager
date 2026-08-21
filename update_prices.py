@@ -124,7 +124,7 @@ async def fetch_torecolo_price(session, torecolo_code):
 # ... (上のコードのインポート部分は同じ)
 
 async def process_card(session, card, index, total_count, date_str, results_dict, semaphore):
-    # 1枚目と、100枚ごとの節目で「〇枚目到達」とだけ出す
+    # 1枚目や100枚ごとの節目で「〇枚目到達」とだけシンプルに出力する
     if (index - 1) % 100 == 0:
         print(f"📊 {index} 枚目到達 ({total_count} 枚中)")
     
@@ -132,10 +132,6 @@ async def process_card(session, card, index, total_count, date_str, results_dict
         card_name = card.get("name", "Unknown")
         search_query = card_name.split("(")[0].strip()
         torecolo_code = format_torecolo_code(card_name)
-        
-        # 100枚ごとの節目、または最初の1枚目に「次の1枚目の名前」と進捗をログに出す
-        if index == 1 or index % 100 == 1:
-            print(f"📊 進捗: {index} / {total_count} 枚目到達 | 処理中のカード例: {card_name} (トレコロ用コード: {torecolo_code})")
         
         rush_task = fetch_card_rush_price(session, search_query)
         torecolo_task = fetch_torecolo_price(session, torecolo_code)
