@@ -19,73 +19,73 @@
     },
     "天命＜天下のお嬢様ですのよ＞(DM26EX3 ㊙1/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 880,
             "torecolo": 1080
         }
     },
     "流星アーシュ＜私が主役⁉＞(DM26EX3 ㊙2超/㊙20)": {
         "2026-08-21": {
             "cardrush": "×",
-            "torecolo": "×"
+            "torecolo": 16800
         }
     },
     "ジュラ子・リューバー＜LOVEですわ＞(DM26EX3 ㊙3/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 680,
             "torecolo": 830
         }
     },
     "流星アーシュ＜私が主役⁉＞(DM26EX3 ㊙2/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 4780,
             "torecolo": 5280
         }
     },
     "天命＜天下のお嬢様ですのよ＞(DM26EX3 ㊙1超/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": 4980
+            "cardrush": 4480,
+            "torecolo": "×"
         }
     },
     "真久間メガ＜ボクにおまかせ！＞(DM26EX3 ㊙4超/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 2980,
             "torecolo": 2980
         }
     },
     "真久間メガ＜ボクにおまかせ！＞(DM26EX3 ㊙4/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 580,
             "torecolo": 580
         }
     },
     "ジュラ子・リューバー＜LOVEですわ＞(DM26EX3 ㊙3超/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 2680,
             "torecolo": 3280
         }
     },
     "庵野しゅうら＜楽しんでね！＞(DM26EX3 ㊙6超/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": "×"
+            "cardrush": 2380,
+            "torecolo": 2480
         }
     },
     "庵野しゅうら＜楽しんでね！＞(DM26EX3 ㊙6/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": "×"
+            "cardrush": 780,
+            "torecolo": 580
         }
     },
     "クリム・美心・ギャラクシー＜アガる！＞(DM26EX3 ㊙5/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": 980
+            "cardrush": 880,
+            "torecolo": "×"
         }
     },
     "伍代ドーラ＜楽勝じゃ！＞(DM26EX3 ㊙7超/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 4780,
             "torecolo": 5480
         }
     },
@@ -97,145 +97,145 @@
     },
     "クリム・美心・ギャラクシー＜アガる！＞(DM26EX3 ㊙5超/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 3980,
             "torecolo": 4280
         }
     },
     "庵野水晶＜がんばるっ!!＞(DM26EX3 ㊙8超/㊙20)": {
         "2026-08-21": {
             "cardrush": "×",
-            "torecolo": "×"
+            "torecolo": 8980
         }
     },
     "流星アーシュ＜私が主役⁉＞(DM26EX3 SSP1/SSP5)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": "×"
+            "cardrush": 108000,
+            "torecolo": 118000
         }
     },
     "伍代ドーラ＜楽勝じゃ！＞(DM26EX3 ㊙7/㊙20)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 1580,
             "torecolo": 1180
         }
     },
     "斬隠蒼頭龍バイケン(DM26EX3 DCR6/DCR15)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 6480,
             "torecolo": 6980
         }
     },
     "真久間メガ＜ボクにおまかせ！＞(DM26EX3 SSP2/SSP5)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": "×"
+            "cardrush": 62800,
+            "torecolo": 59800
         }
     },
     "蒼神龍アナザー・ワールド(DM26EX3 DCR5/DCR15)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 1080,
             "torecolo": 1180
         }
     },
     "「修羅」の頂 VAN・ベートーベン(DM26EX3 DCR4/DCR15)": {
         "2026-08-21": {
             "cardrush": "×",
-            "torecolo": "×"
+            "torecolo": 2580
         }
     },
     "メガ・マグマ・ドラゴン(DM26EX3 DCR8/DCR15)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 1280,
             "torecolo": 1480
         }
     },
     "超竜バジュラズテラ(DM26EX3 DCR7/DCR15)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 1680,
             "torecolo": 1680
         }
     },
     "地封龍 ギャイア(DM26EX3 DCR9/DCR15)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 2380,
             "torecolo": 2380
         }
     },
     "流星のガイアッシュ・カイザー(DM26EX3 DCR11/DCR15)": {
         "2026-08-21": {
             "cardrush": "×",
-            "torecolo": "×"
+            "torecolo": 13800
         }
     },
     "龍仙ロマネスク(DM26EX3 DCR13/DCR15)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 1180,
             "torecolo": 1580
         }
     },
     "ボルバルザーク・エクス(DM26EX3 DCR12/DCR15)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 880,
             "torecolo": "×"
         }
     },
     "水晶の王 ゴスペル(DM26EX3 DCR10/DCR15)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": 3480
+            "cardrush": 3780,
+            "torecolo": "×"
         }
     },
     "流星アーシュ＜私が主役⁉＞(DM26EX3 7/100)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 2180,
             "torecolo": "×"
         }
     },
     "神聖龍 エモーショナル・ハードコア(DM26EX3 4/100)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": "×"
+            "cardrush": 380,
+            "torecolo": 330
         }
     },
     "ボルシャック・アークゼオスNEX(DM26EX3 5/100)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": 30
+            "cardrush": 80,
+            "torecolo": "×"
         }
     },
     "天命＜天下のお嬢様ですのよ＞(DM26EX3 6/100)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 380,
             "torecolo": 430
         }
     },
     "ボルシャック・ガラワルド(DM26EX3 9/100)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 80,
             "torecolo": 70
         }
     },
     "ジュラ子・リューバー＜LOVEですわ＞(DM26EX3 8/100)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 380,
             "torecolo": 330
         }
     },
     "クリム・美心・ギャラクシー＜アガる！＞(DM26EX3 12/100)": {
         "2026-08-21": {
-            "cardrush": "×",
-            "torecolo": 480
+            "cardrush": 380,
+            "torecolo": "×"
         }
     },
     "真久間メガ＜ボクにおまかせ！＞(DM26EX3 11/100)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 180,
             "torecolo": 150
         }
     },
     "永遠のリュウセイ・カイザー(DM26EX3 10/100)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 120,
             "torecolo": 70
         }
     },
@@ -247,14 +247,14 @@
     },
     "邪帝類五龍目 ドミティウス(DM26EX3 14/100)": {
         "2026-08-21": {
-            "cardrush": "×",
+            "cardrush": 80,
             "torecolo": 30
         }
     },
     "音卿の精霊龍 ラフルル・ラブ / 「未来から来る、だからミラクル」(DM26EX3 15/100)": {
         "2026-08-21": {
             "cardrush": "×",
-            "torecolo": "×"
+            "torecolo": 730
         }
     }
 }
