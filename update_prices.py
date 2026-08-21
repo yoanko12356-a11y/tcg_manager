@@ -8,7 +8,7 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 DATA_DIR = "data"
-ALL_CARDS_PATH = "all_cards.json" # 23310枚のカードリスト
+ALL_CARDS_PATH = "all_cards.json"
 
 def clean_search_query(query):
     cleaned = re.sub(r'\s*/\s*', '/', query)
@@ -56,6 +56,8 @@ async def fetch_card_rush_price(session, search_query):
 async def fetch_torecolo_price(session, search_code):
     """トレコロの非同期価格取得（search_codeを使用）"""
     try:
+        if not search_code:
+            return "×"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         search_url = f"https://www.torecolo.jp/shop/goods/search.aspx?ct2=10&search=x&keyword={search_code}"
         
@@ -92,12 +94,16 @@ async def fetch_torecolo_price(session, search_code):
     except Exception:
         return "×"
 
-async def process_card(session, card, date_str, results_dict, semaphore):
-    """同時接続数をコントロールしながら安全に処理する"""
+async def process_card(session, card, index, total_count, date_str, results_dict, semaphore, print_lock):
+    """進捗カウンター付きのカード処理タスク"""
     async with semaphore:
-        card_name = card["name"]
-        search_query = card_name.split("(")[0].strip() # 名前の調整が必要ならここで
+        card_name = card.get("name", "Unknown")
+        search_query = card_name.split("(")[0].strip()
         search_code = card.get("search_code", "")
+        
+        # 処理開始のログ（ロックをかけて文字が混ざらないようにするよ）
+        async with print_lock:
+            print(f"[{index}/{total_count}] 🔍 検索中: {card_name}")
         
         # カードラッシュとトレコロを並行取得
         rush_task = fetch_card_rush_price(session, search_query)
@@ -105,6 +111,7 @@ async def process_card(session, card, date_str, results_dict, semaphore):
         
         rush_price, torecolo_price = await asyncio.gather(rush_task, torecolo_task)
         
+        # 結果格納
         if card_name not in results_dict:
             results_dict[card_name] = {}
             
@@ -112,6 +119,10 @@ async def process_card(session, card, date_str, results_dict, semaphore):
             "cardrush": rush_price,
             "torecolo": torecolo_price
         }
+        
+        # 完了ログ
+        async with print_lock:
+            print(f"[{index}/{total_count}] ✅ 完了: {card_name} (Rush: {rush_price}, Torecolo: {torecolo_price})")
 
 async def main():
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -122,6 +133,9 @@ async def main():
 
     with open(ALL_CARDS_PATH, "r", encoding="utf-8") as f:
         all_cards = json.load(f)
+
+    total_cards = len(all_cards)
+    print(f"=== 全 {total_cards} 枚の価格取得を開始するよ！ ===")
 
     now = datetime.now()
     date_str = now.strftime("%Y-%m-%d")
@@ -138,17 +152,21 @@ async def main():
     else:
         data = {}
 
-    # サーバーに負荷をかけすぎないよう、同時に走るリクエスト数を制限（例: 同時10件まで）
-    semaphore = asyncio.Semaphore(10)
+    # 同時接続数（多すぎるとエラーになるので5〜10件程度がおすすめ）
+    semaphore = asyncio.Semaphore(5)
+    print_lock = asyncio.Lock()
 
     async with aiohttp.ClientSession() as session:
-        tasks = [process_card(session, card, date_str, data, semaphore) for card in all_cards]
+        tasks = [
+            process_card(session, card, i + 1, total_cards, date_str, data, semaphore, print_lock)
+            for i, card in enumerate(all_cards)
+        ]
         await asyncio.gather(*tasks)
 
     with open(json_filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
         
-    print(f"\nSuccessfully updated prices in {json_filename}")
+    print(f"\n🎉 すべての処理が完了したよ！保存先: {json_filename}")
 
 if __name__ == "__main__":
     asyncio.run(main())
