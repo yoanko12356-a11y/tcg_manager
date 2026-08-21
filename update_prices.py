@@ -42,7 +42,7 @@ def format_torecolo_code(card_name):
     
     raw_code = match.group(1).strip() # 例: "DM24BD4 7/15"
     # スペースを消して、スラッシュをハイフンに、あるいは数字のつながりを調整する
-    raw_code = raw_code.replace("㊙", "H")
+    raw_code = raw_code.replace("㊙", "H").replace("超", "T")
     # "DM24BD4 7/15" -> パック名と番号の間、または数字の間にルールを適用
     # 例: "DM24BD4 7/15" -> "DM24BD4" と "7/15" に分ける
     parts = raw_code.split()
@@ -99,7 +99,7 @@ async def fetch_card_rush_price(session, search_query):
         return "×"
 
 async def fetch_torecolo_price(session, torecolo_code):
-    """トレコロの非同期価格取得（在庫0対応版）"""
+    """トレコロの非同期価格取得（在庫ゼロの誤取得防止版）"""
     try:
         if not torecolo_code:
             return "×"
@@ -129,18 +129,16 @@ async def fetch_torecolo_price(session, torecolo_code):
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # ★ ここで在庫が0かどうかをしっかりチェック！
-        # 画像にあった class="stock-status--zero" や product-stock を探すよ
+        # ★ 売り切れ・在庫0の表記やクラスがあったら絶対に価格を取らずに「×」を返す！
+        page_text = detail_soup.get_text()
+        if "品切れ" in page_text or "SOLD OUT" in page_text or "売り切れ" in page_text:
+            return "×"
+            
         stock_elem = detail_soup.find(class_="stock-status--zero") or detail_soup.find(class_="block-products--product-stock")
         if stock_elem:
             stock_text = stock_elem.get_text(strip=True)
             if "0" in stock_text:
                 return "×"
-                
-        # 念のためページ全体のテキストに売り切れ表記がないかもチェック
-        page_text = detail_soup.get_text()
-        if "品切れ" in page_text or "SOLD OUT" in page_text or "売り切れ" in page_text:
-            return "×"
 
         price_elem = detail_soup.find(class_="price") or detail_soup.find(id="price")
         if price_elem:
