@@ -10,9 +10,26 @@ from bs4 import BeautifulSoup
 DATA_DIR = "data"
 ALL_CARDS_PATH = "all_cards.json"
 
-def clean_search_query(query):
-    cleaned = re.sub(r'\s*/\s*', '/', query)
-    return cleaned
+def clean_search_query(card_name):
+    """
+    カード名（例: "流星アーシュ＜私が主役⁉＞(DM26EX3 ㊙2超/㊙20)"）から
+    パック名などのコード部分を取り除き、検索用クエリを整える
+    """
+    match = re.search(r'\(([^)]+)\)', card_name)
+    if not match:
+        return card_name.strip()
+    
+    inner_text = match.group(1).strip() # 例: "DM26EX3 ㊙2超/㊙20"
+    parts = inner_text.split()
+    
+    # アルファベットと数字が混ざったパックコード（例: DM26EX3）を除外する
+    remaining_parts = [p for p in parts if not re.match(r'^[A-Z0-9]+$', p, re.IGNORECASE)]
+    base_name = card_name.split("(")[0].strip()
+    
+    if remaining_parts:
+        return f"{base_name} {' '.join(remaining_parts)}"
+    else:
+        return base_name
 
 def format_torecolo_code(card_name):
     """
@@ -126,7 +143,9 @@ async def fetch_torecolo_price(session, torecolo_code):
 async def process_card(session, card, index, total_count, date_str, results_dict, semaphore, print_lock):
     async with semaphore:
         card_name = card.get("name", "Unknown")
-        search_query = card_name.split("(")[0].strip()
+        
+        # ★ ここを修正！カード名全体を渡して、パック番号を除いた検索クエリを作るよ
+        search_query = clean_search_query(card_name)
         torecolo_code = format_torecolo_code(card_name)
         
         # 取得処理
@@ -145,7 +164,7 @@ async def process_card(session, card, index, total_count, date_str, results_dict
         # 処理が終わったタイミングで、100枚ごとの進捗をログに出す
         if (index - 1) % 100 == 0:
             async with print_lock:
-                print(f"📊 {index} 枚目処理完了: {card_name} (TorecoloCode: {torecolo_code})")
+                print(f"📊 {index} 枚目処理完了: {card_name} (Search: {search_query} / TorecoloCode: {torecolo_code})")
 
 async def main():
     os.makedirs(DATA_DIR, exist_ok=True)

@@ -2,12 +2,6 @@ import requests
 from bs4 import BeautifulSoup
 import urllib.parse
 
-# テストしたいカード（型番ベース）
-test_data = [
-    {"name": "ボルメテウス・モモキング", "code": "DM24BD36-15"},
-    {"name": "従獄の死神シンベロス", "code": "DM24BD414-15"} # シンベロスも型番で試すよ
-]
-
 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
 for item in test_data:
