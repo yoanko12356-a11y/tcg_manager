@@ -67,7 +67,7 @@ def format_torecolo_code(card_name):
     return raw_code.replace(" ", "").replace("/", "-")
 
 async def fetch_card_rush_price(session, search_query):
-    """カードラッシュの非同期価格取得（正確な在庫数判定版）"""
+    """カードラッシュの非同期価格・在庫数取得"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         safe_query = clean_search_query(search_query)
@@ -76,13 +76,11 @@ async def fetch_card_rush_price(session, search_query):
         
         async with session.get(search_url, headers=headers, timeout=10) as response:
             if response.status != 200:
-                return "×"
+                return "×", 0
             html = await response.text()
             
         soup = BeautifulSoup(html, 'html.parser')
         detail_url = None
-        
-        # 検索結果から商品の詳細ページURLを探す
         for link in soup.find_all('a', href=True):
             href = link['href']
             if "/product/" in href:
@@ -90,53 +88,55 @@ async def fetch_card_rush_price(session, search_query):
                 break
                 
         if not detail_url:
-            return "×"
+            return "×", 0
             
         async with session.get(detail_url, headers=headers, timeout=10) as response:
             if response.status != 200:
-                return "×"
+                return "×", 0
             detail_html = await response.text()
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # ★ 在庫数を正確にクラスから取得して数値化する
+        # 在庫数を取得
+        stock_count = 0
         stock_elem = detail_soup.find(class_=lambda x: x and ('stock' in x))
         if stock_elem:
             stock_text = stock_elem.get_text(strip=True)
             match_stock = re.search(r'\d+', stock_text)
             if match_stock:
                 stock_count = int(match_stock.group())
-                # 在庫数が「0」だったら即「×」を返す！
                 if stock_count == 0:
-                    return "×"
+                    return "×", 0
             else:
-                return "×"
+                return "×", 0
         else:
-            return "×"
+            return "×", 0
 
-        # 在庫数が1以上と確認できた場合のみ、価格を取得する
+        # 価格を取得
         price_elem = detail_soup.select_one("#pricech")
         if price_elem:
             price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
             price_match = re.search(r'\d+', price_text)
             if price_match:
-                return int(price_match.group())
+                price = int(price_match.group())
+                # ★ 「価格」と「在庫数」をペアで返す！
+                return price, stock_count
                 
-        return "×"
+        return "×", 0
     except Exception:
-        return "×"
+        return "×", 0
 
 async def fetch_torecolo_price(session, torecolo_code):
-    """トレコロの非同期価格取得（在庫ゼロの誤取得防止版）"""
+    """トレコロの非同期価格・在庫数取得（セット返却版）"""
     try:
         if not torecolo_code:
-            return "×"
+            return "×", 0
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         search_url = f"https://www.torecolo.jp/shop/goods/search.aspx?ct2=10&search=x&keyword={torecolo_code}"
         
         async with session.get(search_url, headers=headers, timeout=10) as response:
             if response.status != 200:
-                return "×"
+                return "×", 0
             html = await response.text()
             
         soup = BeautifulSoup(html, 'html.parser')
@@ -148,31 +148,30 @@ async def fetch_torecolo_price(session, torecolo_code):
                 break
                 
         if not detail_url:
-            return "×"
+            return "×", 0
             
         async with session.get(detail_url, headers=headers, timeout=10) as response:
             if response.status != 200:
-                return "×"
+                return "×", 0
             detail_html = await response.text()
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # 1. まずページ全体に売り切れ系の文字がないか最終確認
+        # 1. ページ全体に売り切れ系の文字がないか最終確認
         page_text = detail_soup.get_text()
         if "品切れ" in page_text or "SOLD OUT" in page_text or "売り切れ" in page_text:
-            return "×"
+            return "×", 0
             
         # 2. 在庫数の要素から「数字」を正確に抜き出す
         stock_elem = detail_soup.find(class_="stock-status--zero") or detail_soup.find(class_="block-products--product-stock") or detail_soup.find(class_=lambda x: x and 'stock' in x)
         
+        stock_count = 0
         has_stock = False
         if stock_elem:
             stock_text = stock_elem.get_text(strip=True)
-            # テキストから数字を抽出（例: "3点" -> 3）
             match_stock = re.search(r'\d+', stock_text)
             if match_stock:
                 stock_count = int(match_stock.group())
-                # ★ 在庫数が「1以上」のときだけフラグを立てる！
                 if stock_count > 0:
                     has_stock = True
 
@@ -183,12 +182,13 @@ async def fetch_torecolo_price(session, torecolo_code):
                 price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
                 price_match = re.search(r'\d+', price_text)
                 if price_match:
-                    return int(price_match.group())
+                    price = int(price_match.group())
+                    # ★ 価格と在庫数をペアで返す！
+                    return price, stock_count
                 
-        # 在庫がない、または価格が取れなかった場合はすべて「×」
-        return "×"
+        return "×", 0
     except Exception:
-        return "×"
+        return "×", 0
 # ... (上のコードのインポート部分は同じ)
 
 async def process_card(session, card, index, total_count, date_str, results_dict, semaphore, print_lock):
