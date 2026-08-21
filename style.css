@@ -1,0 +1,440 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  background-color: #f4f5f7;
+  color: #333333;
+  padding-bottom: 50px;
+  overflow-y: scroll; /* 常に縦スクロールバー用の領域を確保して、バーの出現による画面のガタつきやチラつきを防ぐよ！ */
+}
+
+/* ヘッダー */
+.app-header {
+  background-color: #666666;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 32px;
+  height: 60px;
+}
+
+.app-title {
+  color: #ffffff;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.header-center {
+  flex: 1;
+  max-width: 480px;
+  margin: 0 20px;
+}
+
+.search-box {
+  background-color: #ffffff;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+}
+
+.search-icon {
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  opacity: 0.6;
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+.user-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.user-icon {
+  width: 32px;
+  height: 32px;
+}
+
+/* メインナビゲーション */
+.main-nav {
+  background-color: #ffffff;
+  display: flex;
+  justify-content: flex-start;
+  gap: 32px;
+  padding: 16px 32px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.nav-item {
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  color: #555555;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav-item:hover {
+  transform: translateY(-6px) scale(1.08);
+  color: #000000;
+}
+
+.nav-item img {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 6px;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+
+.nav-item:hover img {
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+}
+
+.nav-item span {
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+/* メインコンテンツ：左右の余白を完全になくして端から端まで広げる */
+.main-container {
+  max-width: 100%;
+  margin: 24px 0;
+  padding: 0;
+}
+
+/* ランキングセクション */
+.ranking-section {
+  margin-bottom: 32px;
+  width: 100%;
+}
+
+/* セクションヘッダー：タイトルは左、右のアクションボタンは右端に固定 */
+.section-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-bottom: 14px;
+  width: 100%;
+  padding: 0 16px; /* ヘッダーの文字やボタンが画面端から少しだけ浮くようにする */
+}
+
+.header-left-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-start;
+  text-align: left;
+  min-width: 0;
+}
+
+.section-title {
+  font-size: 1.05rem;
+  font-weight: bold;
+  color: #222222;
+  text-align: left;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title-icon {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
+}
+
+.price-type-badge {
+  background-color: #ef5350;
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.refresh-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: transform 0.3s ease;
+}
+
+.refresh-btn:hover {
+  transform: rotate(180deg);
+}
+
+.refresh-btn img {
+  width: 20px;
+  height: 20px;
+}
+
+/* 横スクロールカードリスト */
+.horizontal-card-list {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden; /* ← ここに overflow-y: hidden; を追加して、縦方向の判定を完全に封じるよ！ */
+  padding: 24px 16px 28px 16px; 
+  width: 100%;
+}
+
+.card-item {
+  position: relative; /* ← これが超重要！z-indexを機能させるための魔法なんだから！ */
+  z-index: 1;
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+  min-width: 210px;
+  width: 210px;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+}
+
+.card-item:hover {
+  transform: scale(1.18); /* 枠に余裕ができたから、1.15倍に思い切って大きくしても大丈夫！ */
+  box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+  z-index: 10; /* position: relative; と組み合わさることで、確実に一番前のレイヤーに飛び出してくるよ！ */
+}
+
+.card-item img {
+  width: 100%;
+  height: auto;     /* 縦横比を綺麗に保つ */
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.card-title {
+  font-size: 0.75rem;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #111111;
+}
+
+.card-code {
+  font-size: 0.7rem;
+  color: #666666;
+  margin-top: 2px;
+}
+
+/* ダミー価格表示用スタイル */
+.price-container {
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.price-transition {
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #222222;
+}
+
+.price-change {
+  font-size: 0.65rem;
+  font-weight: bold;
+}
+
+.price-change.up {
+  color: #d32f2f;
+}
+
+.price-change.down {
+  color: #1976d2;
+}
+
+/* 買取価格のとき（赤系） */
+.price-type-badge.buy {
+  background-color: #ef5350;
+}
+
+/* 販売価格のとき（青系） */
+.price-type-badge.sell {
+  background-color: #1976d2;
+}
+
+
+/*-------------------------------------------------------------------------------------------------------------------*/
+/* モーダル（ポップアップ）全体スタイル */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-content {
+  background-color: #ffffff;
+  width: 90%;
+  max-width: 480px;
+  border-radius: 12px;
+  padding: 20px;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  transform: translateY(20px);
+  transition: transform 0.25s ease;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.modal-overlay.active .modal-content {
+  transform: translateY(0);
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #888888;
+  cursor: pointer;
+}
+
+.modal-header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eeeeee;
+}
+
+.modal-card-image {
+  width: 90px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.modal-card-info {
+  flex: 1;
+}
+
+.modal-card-info h2 {
+  font-size: 1.1rem;
+  color: #111;
+  margin-bottom: 4px;
+}
+
+.modal-card-code {
+  font-size: 0.8rem;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.modal-price-summary {
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.modal-price-val {
+  color: #d32f2f;
+  font-size: 1.1rem;
+  margin-left: 6px;
+}
+
+.modal-section {
+  margin-bottom: 18px;
+}
+
+.modal-section h3 {
+  font-size: 0.9rem;
+  color: #444;
+  margin-bottom: 10px;
+}
+
+.graph-placeholder {
+  background-color: #f9f9fb;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dummy-chart {
+  width: 100%;
+  height: 100%;
+}
+
+.shop-list {
+  list-style: none;
+}
+
+.shop-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px dashed #eee;
+  font-size: 0.85rem;
+}
+
+.shop-name {
+  color: #333;
+}
+
+.shop-price {
+  font-weight: bold;
+  color: #111;
+}
+
+.shop-link-btn {
+  background-color: #2196f3;
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 0.75rem;
+}

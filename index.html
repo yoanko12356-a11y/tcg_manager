@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TCG Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ヘッダーエリア -->
+  <header class="app-header">
+    <div class="header-left">
+      <h1 class="app-title">TCG Manager</h1>
+    </div>
+    
+    <div class="header-center">
+      <div class="search-box">
+        <img src="images/icon-search.svg" alt="検索" class="search-icon">
+        <input type="text" id="search-input" placeholder="カード名、型番で検索..." />
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button class="user-btn">
+        <img src="images/icon-user.svg" alt="ユーザー" class="user-icon">
+      </button>
+    </div>
+  </header>
+
+  <!-- 左寄せメインナビゲーション -->
+  <nav class="main-nav">
+    <button class="nav-item" data-tab="collection">
+      <img src="images/nav-collection.svg" alt="コレクション">
+      <span>コレクション</span>
+    </button>
+    <button class="nav-item" data-tab="deck">
+      <img src="images/nav-deck.svg" alt="デッキ">
+      <span>デッキ</span>
+    </button>
+    <button class="nav-item" data-tab="search">
+      <img src="images/nav-search.svg" alt="検索">
+      <span>検索</span>
+    </button>
+    <button class="nav-item" data-tab="favorite">
+      <img src="images/nav-favorite.svg" alt="ほしいもの">
+      <span>ほしいもの</span>
+    </button>
+    <button class="nav-item" data-tab="market">
+      <img src="images/nav-market.svg" alt="相場">
+      <span>相場</span>
+    </button>
+  </nav>
+
+  <!-- メインコンテンツ（ホーム画面） -->
+  <main class="main-container">
+
+    <!-- 上昇ランキング -->
+    <section class="ranking-section">
+      <div class="section-header">
+        <div class="header-left-group">
+          <img src="images/icon-trend-up.svg" alt="上昇" class="title-icon">
+          <h2 class="section-title">今日の上昇ランキング（コレクション・ほしいものリスト内）</h2>
+        </div>
+        <div class="section-actions">
+          <!-- 切り替わるバッジ（id="price-type-label"） -->
+          <span class="price-type-badge" id="price-type-label">買取価格</span>
+          <!-- 押すと切り替わる更新ボタン -->
+          <button class="refresh-btn" id="toggle-price-btn" title="価格タイプを切り替え">
+            <img src="images/icon-refresh.svg" alt="更新">
+          </button>
+        </div>
+      </div>
+      
+      <div class="horizontal-card-list" id="up-ranking-list"></div>
+    </section>
+
+    <!-- 下落ランキング -->
+    <section class="ranking-section">
+      <div class="section-header">
+        <div class="header-left-group">
+          <img src="images/icon-trend-down.svg" alt="下落" class="title-icon">
+          <h2 class="section-title">今日の下落ランキング（コレクション・ほしいものリスト内）</h2>
+        </div>
+      </div>
+      
+      <div class="horizontal-card-list" id="down-ranking-list"></div>
+    </section>
+
+  </main>
+
+ <!-- カード詳細・相場ポップアップ（モーダル） -->
+  <div class="modal-overlay" id="card-modal">
+    <div class="modal-content">
+      <button class="modal-close-btn" id="modal-close-btn">&times;</button>
+      
+      <div class="modal-header">
+        <img id="modal-card-img" src="" alt="カード画像" class="modal-card-image">
+        <div class="modal-card-info">
+          <h2 id="modal-card-title">カード名</h2>
+          <p id="modal-card-code" class="modal-card-code">型番</p>
+          <div class="modal-price-summary">
+            <span class="price-label">現在相場:</span>
+            <span id="modal-card-price" class="modal-price-val">¥0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 簡易グラフ描画エリア（Chart.jsなどのキャンバスやダミーSVG） -->
+      <div class="modal-section">
+        <h3>📈 価格変動グラフ（直近30日）</h3>
+        <div class="graph-placeholder">
+          <!-- ダミーのグラフ波形（SVG） -->
+          <svg viewBox="0 0 300 100" class="dummy-chart">
+            <path d="M 0,80 Q 50,20 100,60 T 200,30 T 300,10" fill="none" stroke="#ef5350" stroke-width="3"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 最安ショップ一覧 -->
+      <div class="modal-section">
+        <h3>🛒 最安ショップ情報</h3>
+        <ul class="shop-list">
+          <li class="shop-item">
+            <span class="shop-name">カードショップ A</span>
+            <span class="shop-price">¥1,200</span>
+            <a href="#" class="shop-link-btn" onclick="return false;">在庫あり</a>
+          </li>
+          <li class="shop-item">
+            <span class="shop-name">トレカネット B</span>
+            <span class="shop-price">¥1,280</span>
+            <a href="#" class="shop-link-btn" onclick="return false;">在庫あり</a>
+          </li>
+          <li class="shop-item">
+            <span class="shop-name">ホビーショップ C</span>
+            <span class="shop-price">¥1,350</span>
+            <a href="#" class="shop-link-btn" onclick="return false;">わずか</a>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+    <script src="app.js"></script>
+
+
+    
+</body>
+</html>
