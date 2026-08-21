@@ -14,6 +14,33 @@ def clean_search_query(query):
     cleaned = re.sub(r'\s*/\s*', '/', query)
     return cleaned
 
+def format_torecolo_code(card_name):
+    """
+    カード名に含まれる括弧内の型番（例: "〜(DM24BD4 7/15)"）を
+    トレコロ用の型番（"DM24BD47-15"）に変換する
+    """
+    match = re.search(r'\(([^)]+)\)', card_name)
+    if not match:
+        return ""
+    
+    raw_code = match.group(1).strip() # 例: "DM24BD4 7/15"
+    # スペースを消して、スラッシュをハイフンに、あるいは数字のつながりを調整する
+    # "DM24BD4 7/15" -> パック名と番号の間、または数字の間にルールを適用
+    # 例: "DM24BD4 7/15" -> "DM24BD4" と "7/15" に分ける
+    parts = raw_code.split()
+    if len(parts) >= 2:
+        prefix = parts[0] # "DM24BD4"
+        fraction = parts[1] # "7/15"
+        # スラッシュをハイフンにする ("7/15" -> "7-15") もしトレコロがそうなら
+        # ユーザーの提示したURLでは "DM24BD47-15" (DM24BD4 + 7 + -15 ?)
+        # よく見ると "DM24BD4 7/15" が "DM24BD47-15" になっているので、
+        # prefixの数字の直後とfractionを結合している可能性があるよ！
+        # 例: "DM24BD4" -> "DM24BD4", fraction "7/15" -> "7-15" を合わせて "DM24BD47-15"
+        fraction_fixed = fraction.replace("/", "-")
+        return f"{prefix}{fraction_fixed}"
+        
+    return raw_code.replace(" ", "").replace("/", "-")
+
 async def fetch_card_rush_price(session, search_query):
     """カードラッシュの非同期価格取得"""
     try:
@@ -53,13 +80,13 @@ async def fetch_card_rush_price(session, search_query):
     except Exception:
         return "×"
 
-async def fetch_torecolo_price(session, search_code):
-    """トレコロの非同期価格取得（search_codeを使用）"""
+async def fetch_torecolo_price(session, torecolo_code):
+    """トレコロの非同期価格取得"""
     try:
-        if not search_code:
+        if not torecolo_code:
             return "×"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        search_url = f"https://www.torecolo.jp/shop/goods/search.aspx?ct2=10&search=x&keyword={search_code}"
+        search_url = f"https://www.torecolo.jp/shop/goods/search.aspx?ct2=10&search=x&keyword={torecolo_code}"
         
         async with session.get(search_url, headers=headers, timeout=10) as response:
             if response.status != 200:
@@ -94,24 +121,22 @@ async def fetch_torecolo_price(session, search_code):
     except Exception:
         return "×"
 
-async def process_card(session, card, index, total_count, date_str, results_dict, semaphore, print_lock):
-    """進捗カウンター付きのカード処理タスク"""
+async def process_card(session, card, index, total_count, date_str, results_dict, semaphore):
+    """100枚ごとのログ出力とカード処理"""
     async with semaphore:
         card_name = card.get("name", "Unknown")
         search_query = card_name.split("(")[0].strip()
-        search_code = card.get("search_code", "")
+        torecolo_code = format_torecolo_code(card_name)
         
-        # 処理開始のログ（ロックをかけて文字が混ざらないようにするよ）
-        async with print_lock:
-            print(f"[{index}/{total_count}] 🔍 検索中: {card_name}")
+        # 100枚ごとの節目、または最初の1枚目に「次の1枚目の名前」と進捗をログに出す
+        if index == 1 or index % 100 == 1:
+            print(f"📊 進捗: {index} / {total_count} 枚目到達 | 処理中のカード例: {card_name} (トレコロ用コード: {torecolo_code})")
         
-        # カードラッシュとトレコロを並行取得
         rush_task = fetch_card_rush_price(session, search_query)
-        torecolo_task = fetch_torecolo_price(session, search_code)
+        torecolo_task = fetch_torecolo_price(session, torecolo_code)
         
         rush_price, torecolo_price = await asyncio.gather(rush_task, torecolo_task)
         
-        # 結果格納
         if card_name not in results_dict:
             results_dict[card_name] = {}
             
@@ -119,10 +144,6 @@ async def process_card(session, card, index, total_count, date_str, results_dict
             "cardrush": rush_price,
             "torecolo": torecolo_price
         }
-        
-        # 完了ログ
-        async with print_lock:
-            print(f"[{index}/{total_count}] ✅ 完了: {card_name} (Rush: {rush_price}, Torecolo: {torecolo_price})")
 
 async def main():
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -135,7 +156,7 @@ async def main():
         all_cards = json.load(f)
 
     total_cards = len(all_cards)
-    print(f"=== 全 {total_cards} 枚の価格取得を開始するよ！ ===")
+    print(f"=== 全 {total_cards} 枚の価格取得を開始するよ（100枚ごとにログ出力） ===")
 
     now = datetime.now()
     date_str = now.strftime("%Y-%m-%d")
@@ -152,15 +173,14 @@ async def main():
     else:
         data = {}
 
-    # 同時接続数（多すぎるとエラーになるので5〜10件程度がおすすめ）
     semaphore = asyncio.Semaphore(5)
-    print_lock = asyncio.Lock()
 
     async with aiohttp.ClientSession() as session:
         tasks = [
-            process_card(session, card, i + 1, total_cards, date_str, data, semaphore, print_lock)
+            process_card(session, card, i + 1, total_cards, date_str, data, semaphore)
             for i, card in enumerate(all_cards)
         ]
+        # tqdmや細かい個別ログを排して一気に非同期処理を走らせる
         await asyncio.gather(*tasks)
 
     with open(json_filename, "w", encoding="utf-8") as f:
