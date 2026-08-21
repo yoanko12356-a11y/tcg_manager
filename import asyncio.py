@@ -2,71 +2,77 @@ import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 import re
-import urllib.parse
 
-def clean_search_query(card_name):
+async def format_torecolo_code(card_name):
     """
-    カード名から「カードのベース名」と「型番（㊙→秘に変換）」を抽出して、
-    カードラッシュの検索に最適な形にする
+    カード名に含まれる括弧内の型番をトレコロ用の型番に変換する
     """
     match = re.search(r'\(([^)]+)\)', card_name)
-    base_name = re.sub(r'\s*\(.*?\)', '', card_name).strip()
-    
     if not match:
-        return base_name
+        return ""
     
-    inner_text = match.group(1).strip()
-    inner_text = inner_text.replace("㊙", "秘")
+    raw_code = match.group(1).strip()
+    raw_code = raw_code.replace("㊙", "H").replace("超", "T")
     
-    parts = inner_text.split()
+    parts = raw_code.split()
     if len(parts) >= 2:
-        number_part = " ".join(parts[1:])
-        return f"{base_name} {number_part}"
+        prefix = parts[0]
+        fraction = parts[1]
+        fraction_fixed = fraction.replace("/", "-")
+        return f"{prefix}{fraction_fixed}"
         
-    return card_name.replace("㊙", "秘")
+    return raw_code.replace(" ", "").replace("/", "-")
 
-async def fetch_card_rush_price(session, search_query):
-    """カードラッシュの非同期価格取得（正確な在庫数要素のチェック版）"""
+async def fetch_torecolo_price(session, torecolo_code):
+    """トレコロの非同期価格・在庫数取得（詳細ページの正しい構造に対応）"""
     try:
+        if not torecolo_code:
+            print("❌ トレコロコードが空です")
+            return "×", 0
+            
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        safe_query = clean_search_query(search_query)
-        print(f"🔍 検索クエリ: {safe_query}")
-        
-        encoded_query = urllib.parse.quote(safe_query)
-        search_url = f"https://cardrush-dm.jp/product-list?keyword={encoded_query}&Submit=検索"
+        search_url = f"https://www.torecolo.jp/shop/goods/search.aspx?ct2=10&search=x&keyword={torecolo_code}"
+        print(f"🔍 検索URL: {search_url}")
         
         async with session.get(search_url, headers=headers, timeout=10) as response:
             if response.status != 200:
                 print("❌ 検索ページへのアクセス失敗")
-                return "×"
+                return "×", 0
             html = await response.text()
             
         soup = BeautifulSoup(html, 'html.parser')
         detail_url = None
-        
         for link in soup.find_all('a', href=True):
             href = link['href']
-            if "/product/" in href:
-                detail_url = "https://cardrush-dm.jp" + href if not href.startswith("http") else href
+            if "/shop/g/g" in href:
+                detail_url = "https://www.torecolo.jp" + href if not href.startswith("http") else href
                 break
                 
         if not detail_url:
             print("❌ 商品詳細URLが見つかりませんでした")
-            return "×"
+            return "×", 0
             
         print(f"🔗 詳細URL: {detail_url}")
         
         async with session.get(detail_url, headers=headers, timeout=10) as response:
             if response.status != 200:
                 print("❌ 詳細ページへのアクセス失敗")
-                return "×"
+                return "×", 0
             detail_html = await response.text()
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # ★ カートボタンは使わず、画像のHTML構造（class="detail_section stock" または class="stock"）で完全に在庫数を測る！
-        stock_elem = detail_soup.find(class_=lambda x: x and ('stock' in x))
+        # 1. 売り切れ系の文字チェック
+        page_text = detail_soup.get_text()
+        if "品切れ" in page_text or "SOLD OUT" in page_text or "売り切れ" in page_text:
+            print("❌ ページ内に売り切れの文字を検出")
+            return "×", 0
+            
+        # 2. ★ 最新のHTML構造（id="spec_stock_msg"）から正確に在庫数を取得する！
+        stock_count = 0
+        has_stock = False
         
+        stock_elem = detail_soup.find(id="spec_stock_msg") or detail_soup.find(class_="block-goods-stock")
         if stock_elem:
             stock_text = stock_elem.get_text(strip=True)
             print(f"📦 検出された在庫テキスト: {stock_text}")
@@ -75,44 +81,43 @@ async def fetch_card_rush_price(session, search_query):
             if match_stock:
                 stock_count = int(match_stock.group())
                 print(f"🔢 抽出された在庫数: {stock_count}")
-                
-                # 在庫数が「0」なら価格を見ずに即×を返す
-                if stock_count == 0:
-                    print("❌ 在庫が0のため「×」を返します")
-                    return "×"
-            else:
-                print("⚠️ 在庫数から数字が見つからなかったため「×」を返します")
-                return "×"
+                if stock_count > 0:
+                    has_stock = True
         else:
-            print("⚠️ 在庫要素自体が見つからないため「×」を返します")
-            return "×"
+            print("⚠️ 在庫要素が見つかりませんでした")
 
-        # 在庫数が1以上と確認できた場合のみ、価格を取得する
-        price_elem = detail_soup.select_one("#pricech")
-        if price_elem:
-            price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
-            price_match = re.search(r'\d+', price_text)
-            if price_match:
-                price = int(price_match.group())
-                print(f"💰 取得価格: {price}円")
-                return price
+        # 3. 在庫が1以上の場合のみ価格を取得
+        if has_stock:
+            # トレコロの価格要素（クラス名やIDのパターンに対応）
+            price_elem = detail_soup.find(class_=lambda x: x and 'price' in x) or detail_soup.find(id="price")
+            if price_elem:
+                price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
+                price_match = re.search(r'\d+', price_text)
+                if price_match:
+                    price = int(price_match.group())
+                    print(f"💰 取得価格: {price}円 (在庫: {stock_count}点)")
+                    return price, stock_count
                 
-        return "×"
+        print("❌ 在庫がないか価格が見つかりませんでした")
+        return "×", 0
     except Exception as e:
         print(f"⚠️ エラー発生: {e}")
-        return "×"
+        return "×", 0
 
 async def main():
     test_cards = [
-        "流星アーシュ＜私が主役⁉＞(DM26EX3 ㊙2超/㊙20)",
-        "邪帝類五龍目 ドミティウス(DM26EX3 14/100)"
+        "メガ・マグマ・ドラゴン(DM26EX3 DCR8/DCR15)",
+        "シュバルスリング-B3 / エン・ゲルス・スパーク(DM23RP4 46/74)",
+        "“末法”チュリス(DMEX02 59/84)",
     ]
     
     async with aiohttp.ClientSession() as session:
         for card in test_cards:
             print(f"\n--- テスト開始: {card} ---")
-            price = await fetch_card_rush_price(session, card)
-            print(f"✨ 結果価格: {price}")
+            torecolo_code = await format_torecolo_code(card)
+            print(f"✨ 変換されたトレコロコード: {torecolo_code}")
+            price, stock = await fetch_torecolo_price(session, torecolo_code)
+            print(f"✨ 結果 -> 価格: {price}, 在庫数: {stock}")
 
 if __name__ == "__main__":
     asyncio.run(main())
