@@ -239,8 +239,6 @@ async def main():
     with open(ALL_CARDS_PATH, "r", encoding="utf-8") as f:
         all_cards = json.load(f)
 
-    all_cards = all_cards[:40]
-
     total_cards = len(all_cards)
     print(f"=== 全 {total_cards} 枚の価格取得を開始するよ（100枚ごとにログ出力） ===")
 
