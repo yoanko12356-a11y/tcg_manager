@@ -123,28 +123,29 @@ async def fetch_torecolo_price(session, torecolo_code):
 
 # ... (上のコードのインポート部分は同じ)
 
-async def process_card(session, card, index, total_count, date_str, results_dict, semaphore):
-    # 1枚目や100枚ごとの節目で「〇枚目到達」とだけシンプルに出力する
-    if (index - 1) % 100 == 0:
-        print(f"📊 {index} 枚目到達 ({total_count} 枚中)")
-    
+async def process_card(session, card, index, total_count, date_str, results_dict, semaphore, print_lock):
     async with semaphore:
         card_name = card.get("name", "Unknown")
         search_query = card_name.split("(")[0].strip()
         torecolo_code = format_torecolo_code(card_name)
         
+        # 取得処理
         rush_task = fetch_card_rush_price(session, search_query)
         torecolo_task = fetch_torecolo_price(session, torecolo_code)
-        
         rush_price, torecolo_price = await asyncio.gather(rush_task, torecolo_task)
         
+        # 結果保存
         if card_name not in results_dict:
             results_dict[card_name] = {}
-            
         results_dict[card_name][date_str] = {
             "cardrush": rush_price,
             "torecolo": torecolo_price
         }
+
+        # 処理が終わったタイミングで、100枚ごとの進捗をログに出す
+        if (index - 1) % 100 == 0:
+            async with print_lock:
+                print(f"📊 {index} 枚目処理完了: {card_name} (TorecoloCode: {torecolo_code})")
 
 async def main():
     os.makedirs(DATA_DIR, exist_ok=True)
