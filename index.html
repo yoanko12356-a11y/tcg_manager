@@ -6,54 +6,86 @@
   <title>TCG Manager</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="home-mode">
 
   <!-- ヘッダーエリア -->
   <header class="app-header">
     <div class="header-left">
-      <h1 class="app-title">TCG Manager</h1>
+      <h1 class="app-title" id="logo-home" style="cursor: pointer;">TCG Manager</h1>
     </div>
     
     <div class="header-center">
       <div class="search-box">
-        <img src="images/icon-search.svg" alt="検索" class="search-icon">
+        <img src="images/icon-search.svg" alt="検索" class="search-icon" id="search-trigger-icon">
         <input type="text" id="search-input" placeholder="カード名、型番で検索..." />
       </div>
     </div>
 
+    <!-- ヘッダー右側エリア -->
     <div class="header-right">
+      <!-- 検索画面のときだけヘッダー右側に表示されるナビボタン群 -->
+      <div class="nav-buttons-group">
+        <button class="header-nav-btn home-icon-style" id="header-home-btn" data-tab="home" title="ホーム">
+          <img src="images/nav-home.svg" alt="ホーム" class="nav-icon-img">
+          <span>ホーム</span>
+        </button>
+        <button class="header-nav-btn home-icon-style" data-tab="collection" title="コレクション">
+          <img src="images/nav-collection.svg" alt="コレクション" class="nav-icon-img">
+          <span>コレクション</span>
+        </button>
+        <button class="header-nav-btn home-icon-style" data-tab="deck" title="デッキ">
+          <img src="images/nav-deck.svg" alt="デッキ" class="nav-icon-img">
+          <span>デッキ</span>
+        </button>
+        <button class="header-nav-btn home-icon-style active" data-tab="search" id="nav-search-btn" title="検索">
+          <img src="images/nav-search.svg" alt="検索" class="nav-icon-img">
+          <span>検索</span>
+        </button>
+        <button class="header-nav-btn home-icon-style" data-tab="favorite" title="ほしいもの">
+          <img src="images/nav-favorite.svg" alt="ほしいもの" class="nav-icon-img">
+          <span>ほしいもの</span>
+        </button>
+        <button class="header-nav-btn home-icon-style" data-tab="market" title="相場">
+          <img src="images/nav-market.svg" alt="相場" class="nav-icon-img">
+          <span>相場</span>
+        </button>
+      </div>
+
+      <!-- ユーザーアイコン -->
       <button class="user-btn">
         <img src="images/icon-user.svg" alt="ユーザー" class="user-icon">
       </button>
     </div>
   </header>
 
-  <!-- 左寄せメインナビゲーション -->
-  <nav class="main-nav">
-    <button class="nav-item" data-tab="collection">
-      <img src="images/nav-collection.svg" alt="コレクション">
-      <span>コレクション</span>
-    </button>
-    <button class="nav-item" data-tab="deck">
-      <img src="images/nav-deck.svg" alt="デッキ">
-      <span>デッキ</span>
-    </button>
-    <button class="nav-item" data-tab="search">
-      <img src="images/nav-search.svg" alt="検索">
-      <span>検索</span>
-    </button>
-    <button class="nav-item" data-tab="favorite">
-      <img src="images/nav-favorite.svg" alt="ほしいもの">
-      <span>ほしいもの</span>
-    </button>
-    <button class="nav-item" data-tab="market">
-      <img src="images/nav-market.svg" alt="相場">
-      <span>相場</span>
-    </button>
-  </nav>
+  <!-- ========================== -->
+  <!-- ① ホーム画面ビュー -->
+  <!-- ========================== -->
+  <main class="main-container" id="home-view">
 
-  <!-- メインコンテンツ（ホーム画面） -->
-  <main class="main-container">
+    <!-- ホーム画面用の左側アイコン配置エリア -->
+    <div class="home-nav-bar">
+      <button class="home-nav-item" data-tab="collection" title="コレクション">
+        <img src="images/nav-collection.svg" alt="コレクション" class="nav-icon-img">
+        <span>コレクション</span>
+      </button>
+      <button class="home-nav-item" data-tab="deck" title="デッキ">
+        <img src="images/nav-deck.svg" alt="デッキ" class="nav-icon-img">
+        <span>デッキ</span>
+      </button>
+      <button class="home-nav-item" data-tab="search" title="検索">
+        <img src="images/nav-search.svg" alt="検索" class="nav-icon-img">
+        <span>検索</span>
+      </button>
+      <button class="home-nav-item" data-tab="favorite" title="ほしいもの">
+        <img src="images/nav-favorite.svg" alt="ほしいもの" class="nav-icon-img">
+        <span>ほしいもの</span>
+      </button>
+      <button class="home-nav-item" data-tab="market" title="相場">
+        <img src="images/nav-market.svg" alt="相場" class="nav-icon-img">
+        <span>相場</span>
+      </button>
+    </div>
 
     <!-- 上昇ランキング -->
     <section class="ranking-section">
@@ -63,9 +95,7 @@
           <h2 class="section-title">今日の上昇ランキング（コレクション・ほしいものリスト内）</h2>
         </div>
         <div class="section-actions">
-          <!-- 切り替わるバッジ（id="price-type-label"） -->
           <span class="price-type-badge" id="price-type-label">買取価格</span>
-          <!-- 押すと切り替わる更新ボタン -->
           <button class="refresh-btn" id="toggle-price-btn" title="価格タイプを切り替え">
             <img src="images/icon-refresh.svg" alt="更新">
           </button>
@@ -89,7 +119,32 @@
 
   </main>
 
- <!-- カード詳細・相場ポップアップ（モーダル） -->
+
+  <!-- ========================== -->
+  <!-- ② 検索画面ビュー（初期は非表示） -->
+  <!-- ========================== -->
+  <main class="main-container" id="search-view" style="display: none;">
+    
+    <!-- 文明・特性フィルターアイコンの横並びエリア -->
+    <div class="civ-filter-bar" style="display: flex; gap: 10px; padding: 0 16px 16px 16px; overflow-x: auto;">
+      <button class="civ-btn" data-civ="light"><img src="images/icon-civ-light.svg" alt="光" style="width:36px;height:36px;"></button>
+      <button class="civ-btn" data-civ="water"><img src="images/icon-civ-water.svg" alt="水" style="width:36px;height:36px;"></button>
+      <button class="civ-btn" data-civ="fire"><img src="images/icon-civ-fire.svg" alt="火" style="width:36px;height:36px;"></button>
+      <button class="civ-btn" data-civ="nature"><img src="images/icon-civ-nature.svg" alt="自然" style="width:36px;height:36px;"></button>
+      <button class="civ-btn" data-civ="dark"><img src="images/icon-civ-dark.svg" alt="闇" style="width:36px;height:36px;"></button>
+      <button class="civ-btn" data-civ="zero"><img src="images/icon-civ-zero.svg" alt="ゼロ" style="width:36px;height:36px;"></button>
+      <button class="civ-btn" data-civ="multi"><img src="images/icon-civ-multi.svg" alt="多色" style="width:36px;height:36px;"></button>
+      <button class="civ-btn" data-civ="monochrome"><img src="images/icon-civ-monochrome.svg" alt="単色" style="width:36px;height:36px;"></button>
+    </div>
+
+    <!-- 検索結果グリッド表示エリア -->
+    <div class="search-grid-container" id="search-results-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 0 16px;">
+    </div>
+
+  </main>
+
+
+  <!-- カード詳細・相場ポップアップ（モーダル） -->
   <div class="modal-overlay" id="card-modal">
     <div class="modal-content">
       <button class="modal-close-btn" id="modal-close-btn">&times;</button>
@@ -106,18 +161,15 @@
         </div>
       </div>
 
-      <!-- 簡易グラフ描画エリア（Chart.jsなどのキャンバスやダミーSVG） -->
       <div class="modal-section">
         <h3>📈 価格変動グラフ（直近30日）</h3>
         <div class="graph-placeholder">
-          <!-- ダミーのグラフ波形（SVG） -->
           <svg viewBox="0 0 300 100" class="dummy-chart">
             <path d="M 0,80 Q 50,20 100,60 T 200,30 T 300,10" fill="none" stroke="#ef5350" stroke-width="3"/>
           </svg>
         </div>
       </div>
 
-      <!-- 最安ショップ一覧 -->
       <div class="modal-section">
         <h3>🛒 最安ショップ情報</h3>
         <ul class="shop-list">
@@ -142,9 +194,6 @@
     </div>
   </div>
 
-    <script src="app.js"></script>
-
-
-    
+  <script src="app.js"></script>
 </body>
 </html>

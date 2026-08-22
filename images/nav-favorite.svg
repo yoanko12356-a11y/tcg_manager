@@ -3,7 +3,7 @@
   <defs>
     <style>
       .cls-1 {
-        fill: #898989;
+        fill: var(--fill-color-2, currentColor);
       }
     </style>
   </defs>
