@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TCG Manager</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="home-mode">
 
@@ -17,7 +18,7 @@
     <div class="header-center">
       <div class="search-box">
         <img src="images/icon-search.svg" alt="検索" class="search-icon" id="search-trigger-icon">
-        <input type="text" id="search-input" placeholder="カード名、型番で検索..." />
+        <input type="text" id="search-input" placeholder="カード名、種族、型番で検索..." />
       </div>
     </div>
 
@@ -127,15 +128,83 @@
     
     <!-- 文明・特性フィルターアイコンの横並びエリア -->
    <!-- 検索画面の文明フィルターエリア -->
-<div class="civ-filter-bar">
-  <button class="civ-btn" data-civ="light"><img src="images/icon-civ-light.svg" alt="光"></button>
-  <button class="civ-btn" data-civ="water"><img src="images/icon-civ-water.svg" alt="水"></button>
-  <button class="civ-btn" data-civ="fire"><img src="images/icon-civ-fire.svg" alt="火"></button>
-  <button class="civ-btn" data-civ="nature"><img src="images/icon-civ-nature.svg" alt="自然"></button>
-  <button class="civ-btn" data-civ="dark"><img src="images/icon-civ-dark.svg" alt="闇"></button>
-  <button class="civ-btn" data-civ="zero"><img src="images/icon-civ-zero.svg" alt="ゼロ"></button>
-  <button class="civ-btn" data-civ="multi"><img src="images/icon-civ-multi.svg" alt="多色"></button>
-  <button class="civ-btn" data-civ="monochrome"><img src="images/icon-civ-monochrome.svg" alt="単色"></button>
+<!-- 検索画面の文明フィルターエリア（画像通りの右側サブ検索付き） -->
+<div class="civ-filter-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+  <div style="display: flex; gap: 8px; overflow-x: auto; align-items: center;">
+    <button class="civ-btn" data-civ="光"><img src="images/icon-civ-light.svg" alt="光"></button>
+    <button class="civ-btn" data-civ="水"><img src="images/icon-civ-water.svg" alt="水"></button>
+    <button class="civ-btn" data-civ="火"><img src="images/icon-civ-fire.svg" alt="火"></button>
+    <button class="civ-btn" data-civ="自然"><img src="images/icon-civ-nature.svg" alt="自然"></button>
+    <button class="civ-btn" data-civ="闇"><img src="images/icon-civ-dark.svg" alt="闇"></button>
+    <button class="civ-btn" data-civ="ゼロ"><img src="images/icon-civ-zero.svg" alt="ゼロ"></button>
+    <button class="civ-btn" data-civ="多色"><img src="images/icon-civ-multi.svg" alt="多色"></button>
+    <button class="civ-btn" data-civ="単色"><img src="images/icon-civ-monochrome.svg" alt="単色"></button>
+    
+    <!-- ★ここに文明ボタンの横に並ぶチェックボックスを追加！ -->
+    <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.95rem; color: #475569; cursor: pointer; white-space: nowrap; margin-left: 4px;">
+      <input type="checkbox" id="uniqueModeCheckbox" style="cursor: pointer;"> 
+      同名カードを1枚にまとめる
+    </label>
+    
+    <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.95rem; color: #475569; margin-left: 12px;">
+    <span>選んだ文明:</span>
+    <select id="civMatchMode" style="padding: 2px 4px; border-radius: 4px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; font-size: 0.9rem;">
+    <option value="or">いずれか含む</option>
+    <option value="and">すべて含む</option>
+    </select>
+    </label>
+
+  </div>
+
+  <!-- 右側のサブ検索エリア（テキスト・フリーワード＋オプションボタン） -->
+  <div class="sub-search-container" style="display: flex; gap: 8px; align-items: center; background: #fff; padding: 4px 12px; border-radius: 20px; border: 1px solid #cbd5e1; position: relative;">
+    <select id="sub-search-type" style="border: none; outline: none; background: transparent; font-size: 0.85rem; color: #475569; cursor: pointer;">
+      <option value="text">テキスト</option>
+      <option value="free">フリーワード</option>
+    </select>
+    <span style="color: #cbd5e1;">|</span>
+
+    <!-- 入力欄（テキスト・フリーワード用） -->
+    <div id="single-input-wrapper" style="display: flex; align-items: center;">
+      <input type="text" id="sub-search-input" placeholder="検索ワードを入力..." style="border: none; outline: none; font-size: 0.85rem; width: 240px;" />
+    </div>
+
+    <!-- オプションメニューを開くボタン（歯車アイコンなど） -->
+    <button id="filter-toggle-btn" style="border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;" title="詳細オプション">
+      <img src="images/filter-toggle-btn.svg" alt="フィルター" style="width: 24px; height: 24px; display: block;" />
+    </button>
+
+    <!-- 背景の暗幕（バックドロップ） ※まだ入れてなかったらヘッダーやモーダルの近くに置いてね -->
+  <div id="options-backdrop"></div>
+
+  <!-- 右からスライドしてくる詳細オプションメニュー -->
+  <div id="options-popup">
+    <div style="font-weight: bold; margin-bottom: 16px; font-size: 1.1rem; color: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+      <span>詳細オプション</span>
+      <button id="options-close-btn" style="border: none; background: transparent; cursor: pointer; font-size: 1.2rem; color: #64748b;">✕</button>
+    </div>
+
+    <!-- パワー範囲指定 -->
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 0.85rem; color: #64748b; display: block; margin-bottom: 6px; font-weight: bold;">パワー</label>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="text" id="power-min-input" placeholder="指定なし" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; text-align: center; background: #f8fafc; outline: none;" />
+        <span style="font-size: 0.9rem; color: #666;">〜</span>
+        <input type="text" id="power-max-input" placeholder="指定なし" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; text-align: center; background: #f8fafc; outline: none;" />
+      </div>
+    </div>
+
+    <!-- コスト範囲指定 -->
+    <div>
+      <label style="font-size: 0.85rem; color: #64748b; display: block; margin-bottom: 6px; font-weight: bold;">コスト</label>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="text" id="cost-min-input" placeholder="指定なし" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; text-align: center; background: #f8fafc; outline: none;" />
+        <span style="font-size: 0.9rem; color: #666;">〜</span>
+        <input type="text" id="cost-max-input" placeholder="指定なし" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; text-align: center; background: #f8fafc; outline: none;" />
+      </div>
+    </div>
+  </div>
+  </div>
 </div>
 
     <!-- 検索結果グリッド表示エリア -->
@@ -162,12 +231,29 @@
         </div>
       </div>
 
+      <!-- 平均価格・販売数のサマリー情報 -->
+      <div class="modal-section" style="border-bottom: 1px solid #eee; padding-bottom: 12px; margin-bottom: 12px;">
+        <div id="modal-summary-info" style="font-size: 0.9rem; color: #333;">
+          <div>平均価格: <strong id="modal-avg-price" style="font-size: 1.1rem;">¥—</strong></div>
+          <div style="color: #666; font-size: 0.85rem; margin-top: 2px;">販売数: <span id="modal-sales-count">—</span></div>
+        </div>
+      </div>
+
       <div class="modal-section">
-        <h3>📈 価格変動グラフ（直近30日）</h3>
-        <div class="graph-placeholder">
-          <svg viewBox="0 0 300 100" class="dummy-chart">
-            <path d="M 0,80 Q 50,20 100,60 T 200,30 T 300,10" fill="none" stroke="#ef5350" stroke-width="3"/>
-          </svg>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+          <!-- 期間切り替えボタン群 -->
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <button id="chart-btn-all" class="chart-filter-btn active" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; border: none; background: #3b82f6; color: #fff; cursor: pointer;">全期間</button>
+            <button id="chart-btn-90d" class="chart-filter-btn" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; border: none; background: #f1f5f9; color: #666; cursor: pointer;">90日</button>
+            <button id="chart-btn-60d" class="chart-filter-btn" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; border: none; background: #f1f5f9; color: #666; cursor: pointer;">60日</button>
+            <button id="chart-btn-30d" class="chart-filter-btn" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; border: none; background: #f1f5f9; color: #666; cursor: pointer;">30日</button>
+            <button id="chart-btn-7d" class="chart-filter-btn" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; border: none; background: #f1f5f9; color: #666; cursor: pointer;">7日</button>
+          </div>
+        </div>
+        
+        <!-- グラフ描画用のcanvas -->
+        <div style="position: relative; height: 160px; width: 100%;">
+          <canvas id="priceChart"></canvas>
         </div>
       </div>
 
@@ -194,6 +280,11 @@
 
     </div>
   </div>
+
+  <!-- カード画像拡大用オーバーレイ -->
+<div id="image-zoom-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center; cursor: zoom-out;">
+  <img id="zoomed-card-img" src="" alt="拡大画像" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 26px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+</div>
 
   <script src="app.js"></script>
 </body>

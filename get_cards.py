@@ -122,18 +122,23 @@ def fetch_card_detail(detail_url):
         power_tag = detail_soup.select_one('.power, .card-power')
         power = power_tag.text.strip() if power_tag else ""
 
-        # 文明（複数ある場合もあるのでリストや文字列としてまとめる）
-        civ_tags = detail_soup.select('.civ, .card-civ img') # 画像アイコンのaltやクラスから取得する場合も
-        civs = [img.get('alt', '') for img in civ_tags if img.get('alt')] if civ_tags else []
+       # 文明の取得（class="civil" から取得するよ）
+        civ_tag = detail_soup.select_one('td.civil, .civil')
+        civs = [civ_tag.text.strip()] if civ_tag and civ_tag.text.strip() else []
         
         # 種族
         race_tag = detail_soup.select_one('.race, .card-race')
         race = race_tag.text.strip() if race_tag else ""
 
-        # テキスト（能力欄）
-        text_tag = detail_soup.select_one('.text, .card-text, .ability')
-        card_text = text_tag.text.strip() if text_tag else ""
-
+        # テキストの取得（class="skills full" または class="text" などからリストをまとめる）
+        text_tags = detail_soup.select('td.skills.full li, .skills li, .card-text li')
+        if text_tags:
+            card_text = "\n".join([li.text.strip() for li in text_tags if li.text.strip()])
+        else:
+            # 万が一リストじゃない場合の保険
+            text_tag = detail_soup.select_one('td.skills.full, .skills, .card-text')
+            card_text = text_tag.text.strip() if text_tag else ""
+            
         return {
             "name": name,
             "product_code": code,

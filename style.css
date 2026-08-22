@@ -508,3 +508,52 @@ body.search-mode .nav-buttons-group {
   object-fit: contain;
   pointer-events: none;
 }
+
+/* --- 画面右からスライドしてくる詳細オプションメニュー --- */
+#options-popup {
+  position: fixed;
+  top: 0;
+  right: -320px; /* 最初は画面の右外側に隠す */
+  width: 300px;
+  height: 100vh;
+  background: #ffffff;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  z-index: 2000;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  
+  /* 🌟 displayの切り替えをやめて、visibilityとopacityで制御するよ */
+  visibility: hidden;
+  opacity: 0;
+  transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, visibility 0.3s ease;
+}
+
+/* 「show」クラスがついたときに見える位置にスライドインする */
+#options-popup.show {
+  right: 0;
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ポップアップが開いているときの背景オーバーレイ */
+#options-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1999;
+  backdrop-filter: blur(2px);
+  
+  /* 🌟 こちらもdisplayではなくvisibilityとopacityでアニメーションさせる */
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+#options-backdrop.show {
+  visibility: visible;
+  opacity: 1;
+}
