@@ -83,7 +83,7 @@ cards = []
 
 def fetch_card_detail(detail_url):
     try:
-        # サーバー負荷軽減のため、取得ごとに0.2〜0.5秒のランダムなゆとりを持たせる
+        # サーバー負荷軽減のためのゆとり
         time.sleep(random.uniform(0.2, 0.5))
         
         res = requests.get(detail_url, headers=headers, timeout=15)
@@ -92,15 +92,15 @@ def fetch_card_detail(detail_url):
             
         detail_soup = BeautifulSoup(res.text, 'html.parser')
 
-        # カード名
+        # 1. カード名
         name_tag = detail_soup.select_one('.card-name, h1.title, .card_name, .title')
         name = name_tag.text.strip() if name_tag else ""
 
-        # 型番
+        # 2. 型番
         code_tag = detail_soup.select_one('.card-number, .number, .no, .card_no')
         code = code_tag.text.strip() if code_tag else ""
 
-        # 画像URL
+        # 3. 画像URL
         img_tag = detail_soup.select_one('.card-img img, .img img, .card_thumb img')
         img_url = img_tag['src'] if img_tag and img_tag.has_attr('src') else ""
         if img_url and not img_url.startswith('http'):
@@ -110,12 +110,41 @@ def fetch_card_detail(detail_url):
             match = re.search(r'/([^/]+)\.(?:jpg|png)', img_url)
             code = match.group(1) if match else ""
 
+        # ==========================================
+        # 新しく追加する情報の取得部分
+        # ==========================================
+        
+        # コスト
+        cost_tag = detail_soup.select_one('.cost, .card-cost') # 公式のクラス名に合わせて調整してね
+        cost = cost_tag.text.strip() if cost_tag else ""
+
+        # パワー
+        power_tag = detail_soup.select_one('.power, .card-power')
+        power = power_tag.text.strip() if power_tag else ""
+
+        # 文明（複数ある場合もあるのでリストや文字列としてまとめる）
+        civ_tags = detail_soup.select('.civ, .card-civ img') # 画像アイコンのaltやクラスから取得する場合も
+        civs = [img.get('alt', '') for img in civ_tags if img.get('alt')] if civ_tags else []
+        
+        # 種族
+        race_tag = detail_soup.select_one('.race, .card-race')
+        race = race_tag.text.strip() if race_tag else ""
+
+        # テキスト（能力欄）
+        text_tag = detail_soup.select_one('.text, .card-text, .ability')
+        card_text = text_tag.text.strip() if text_tag else ""
+
         return {
             "name": name,
             "product_code": code,
             "search_code": normalize(code),
             "image_url": img_url,
-            "detail_url": detail_url
+            "detail_url": detail_url,
+            "cost": cost,
+            "power": power,
+            "civilizations": civs,
+            "race": race,
+            "text": card_text
         }
     except Exception:
         return None

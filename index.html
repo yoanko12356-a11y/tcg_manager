@@ -42,11 +42,11 @@
           <span>検索</span>
         </button>
         <button class="header-nav-btn home-icon-style" data-tab="favorite" title="ほしいもの">
-          <img src="images/nav-favorite.svg" alt="ほしいもの" class="nav-icon-img">
+          <img src="images/nav-favorite.svg" alt="ほしいもの" class="nav-icon-img" id="favorite-icon">
           <span>ほしいもの</span>
         </button>
         <button class="header-nav-btn home-icon-style" data-tab="market" title="相場">
-          <img src="images/nav-market.svg" alt="相場" class="nav-icon-img">
+          <img src="images/nav-market.svg" alt="相場" class="nav-icon-img " id="market-icon">
           <span>相場</span>
         </button>
       </div>
@@ -77,12 +77,12 @@
         <img src="images/nav-search.svg" alt="検索" class="nav-icon-img">
         <span>検索</span>
       </button>
-      <button class="home-nav-item" data-tab="favorite" title="ほしいもの">
-        <img src="images/nav-favorite.svg" alt="ほしいもの" class="nav-icon-img">
+      <button class="home-nav-item home-icon-style" data-tab="favorite" title="ほしいもの">
+        <img src="images/nav-favorite.svg" alt="ほしいもの" class="nav-icon-img" id="favorite-icon">
         <span>ほしいもの</span>
       </button>
-      <button class="home-nav-item" data-tab="market" title="相場">
-        <img src="images/nav-market.svg" alt="相場" class="nav-icon-img">
+      <button class="home-nav-item home-icon-style" data-tab="market" title="相場">
+        <img src="images/nav-market.svg" alt="相場" class="nav-icon-img" id="market-icon">
         <span>相場</span>
       </button>
     </div>
@@ -126,16 +126,17 @@
   <main class="main-container" id="search-view" style="display: none;">
     
     <!-- 文明・特性フィルターアイコンの横並びエリア -->
-    <div class="civ-filter-bar" style="display: flex; gap: 10px; padding: 0 16px 16px 16px; overflow-x: auto;">
-      <button class="civ-btn" data-civ="light"><img src="images/icon-civ-light.svg" alt="光" style="width:36px;height:36px;"></button>
-      <button class="civ-btn" data-civ="water"><img src="images/icon-civ-water.svg" alt="水" style="width:36px;height:36px;"></button>
-      <button class="civ-btn" data-civ="fire"><img src="images/icon-civ-fire.svg" alt="火" style="width:36px;height:36px;"></button>
-      <button class="civ-btn" data-civ="nature"><img src="images/icon-civ-nature.svg" alt="自然" style="width:36px;height:36px;"></button>
-      <button class="civ-btn" data-civ="dark"><img src="images/icon-civ-dark.svg" alt="闇" style="width:36px;height:36px;"></button>
-      <button class="civ-btn" data-civ="zero"><img src="images/icon-civ-zero.svg" alt="ゼロ" style="width:36px;height:36px;"></button>
-      <button class="civ-btn" data-civ="multi"><img src="images/icon-civ-multi.svg" alt="多色" style="width:36px;height:36px;"></button>
-      <button class="civ-btn" data-civ="monochrome"><img src="images/icon-civ-monochrome.svg" alt="単色" style="width:36px;height:36px;"></button>
-    </div>
+   <!-- 検索画面の文明フィルターエリア -->
+<div class="civ-filter-bar">
+  <button class="civ-btn" data-civ="light"><img src="images/icon-civ-light.svg" alt="光"></button>
+  <button class="civ-btn" data-civ="water"><img src="images/icon-civ-water.svg" alt="水"></button>
+  <button class="civ-btn" data-civ="fire"><img src="images/icon-civ-fire.svg" alt="火"></button>
+  <button class="civ-btn" data-civ="nature"><img src="images/icon-civ-nature.svg" alt="自然"></button>
+  <button class="civ-btn" data-civ="dark"><img src="images/icon-civ-dark.svg" alt="闇"></button>
+  <button class="civ-btn" data-civ="zero"><img src="images/icon-civ-zero.svg" alt="ゼロ"></button>
+  <button class="civ-btn" data-civ="multi"><img src="images/icon-civ-multi.svg" alt="多色"></button>
+  <button class="civ-btn" data-civ="monochrome"><img src="images/icon-civ-monochrome.svg" alt="単色"></button>
+</div>
 
     <!-- 検索結果グリッド表示エリア -->
     <div class="search-grid-container" id="search-results-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 0 16px;">

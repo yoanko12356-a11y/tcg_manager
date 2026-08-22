@@ -10,7 +10,7 @@
       }
 
       .cls-2 {
-        fill: var(--fill-color-2, currentColor);
+        fill: #898989;
       }
     </style>
   </defs>

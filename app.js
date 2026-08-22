@@ -20,9 +20,14 @@ function normalizeQuery(str) {
     .trim();
 }
 
+// --- ここから書き換え ---
 function switchView(viewName) {
   const homeView = document.getElementById('home-view');
   const searchView = document.getElementById('search-view');
+  
+  // アイコンをIDで取得
+  const favoriteIcon = document.getElementById('favorite-icon');
+  const marketIcon = document.getElementById('market-icon');
 
   if (!homeView || !searchView) return;
 
@@ -31,13 +36,22 @@ function switchView(viewName) {
     searchView.style.display = 'block';
     document.body.classList.remove('home-mode');
     document.body.classList.add('search-mode');
+    
+    // 検索モード：active画像をセット
+    if (favoriteIcon) favoriteIcon.src = 'images/nav-favorite-active.svg';
+    if (marketIcon) marketIcon.src = 'images/nav-market-active.svg';
   } else {
     homeView.style.display = 'block';
     searchView.style.display = 'none';
     document.body.classList.remove('search-mode');
     document.body.classList.add('home-mode');
+    
+    // ホームモード：通常画像に戻す
+    if (favoriteIcon) favoriteIcon.src = 'images/nav-favorite.svg';
+    if (marketIcon) marketIcon.src = 'images/nav-market.svg';
   }
 }
+// --- ここまで ---
 
 function renderSearchResults(filterText = "") {
   const container = document.getElementById("search-results-grid");
@@ -261,4 +275,23 @@ if (toggleBtn) {
 document.addEventListener("DOMContentLoaded", () => {
   setupNavigationAndSearch();
   loadCards();
+});
+
+// --- 文明フィルターの複数選択処理 ---
+document.addEventListener("DOMContentLoaded", () => {
+  const civButtons = document.querySelectorAll('.civ-btn');
+  
+  civButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      // 押されたら active クラスをトグル（付いたり外れたり）させる
+      btn.classList.toggle('active');
+      
+      // 現在選択されている文明のリストを取得してコンソールに出すよ
+      const selectedCivs = Array.from(document.querySelectorAll('.civ-btn.active'))
+                                .map(b => b.dataset.civ);
+      console.log("選択中の文明:", selectedCivs);
+      
+      // TODO: ここで selectedCivs を使ってカードを絞り込む処理を書くんだ！
+    });
+  });
 });
