@@ -72,7 +72,7 @@ def format_torecolo_code(card_name):
     return raw_code.replace(" ", "").replace("/", "-")
 
 async def fetch_card_rush_price(session, search_query):
-    """カードラッシュの非同期価格・在庫数取得"""
+    """カードラッシュの非同期価格・在庫数取得（エラー詳細表示版）"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         safe_query = clean_search_query(search_query)
@@ -81,6 +81,7 @@ async def fetch_card_rush_price(session, search_query):
         
         async with session.get(search_url, headers=headers, timeout=10) as response:
             if response.status != 200:
+                print(f"[CardRush Search Error] Status {response.status} for query: {search_query}")
                 return "×", 0
             html = await response.text()
             
@@ -93,16 +94,17 @@ async def fetch_card_rush_price(session, search_query):
                 break
                 
         if not detail_url:
+            # 検索にヒットしなかった場合
             return "×", 0
             
         async with session.get(detail_url, headers=headers, timeout=10) as response:
             if response.status != 200:
+                print(f"[CardRush Detail Error] Status {response.status} for URL: {detail_url}")
                 return "×", 0
             detail_html = await response.text()
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # 在庫数を取得
         stock_count = 0
         stock_elem = detail_soup.find(class_=lambda x: x and ('stock' in x))
         if stock_elem:
@@ -117,22 +119,25 @@ async def fetch_card_rush_price(session, search_query):
         else:
             return "×", 0
 
-        # 価格を取得
         price_elem = detail_soup.select_one("#pricech")
         if price_elem:
             price_text = price_elem.get_text().replace("円", "").replace(",", "").strip()
             price_match = re.search(r'\d+', price_text)
             if price_match:
-                price = int(price_match.group())
-                # ★ 「価格」と「在庫数」をペアで返す！
-                return price, stock_count
+                return int(price_match.group()), stock_count
                 
         return "×", 0
-    except Exception:
+        
+    except asyncio.TimeoutError:
+        print(f"[CardRush Timeout] クエリ: {search_query}")
+        return "×", 0
+    except Exception as e:
+        print(f"[CardRush Exception] クエリ: {search_query} / エラー: {e}")
         return "×", 0
 
+
 async def fetch_torecolo_price(session, torecolo_code):
-    """トレコロの非同期価格・在庫数取得（美品のみ対象＆正確な在庫判定版）"""
+    """トレコロの非同期価格・在庫数取得（エラー詳細表示版）"""
     try:
         if not torecolo_code:
             return "×", 0
@@ -141,20 +146,18 @@ async def fetch_torecolo_price(session, torecolo_code):
         
         async with session.get(search_url, headers=headers, timeout=10) as response:
             if response.status != 200:
+                print(f"[Torecolo Search Error] Status {response.status} for code: {torecolo_code}")
                 return "×", 0
             html = await response.text()
             
         soup = BeautifulSoup(html, 'html.parser')
         
-        # 1. 検索結果から「キズあり」を除外して美品のURLを探す
         detail_url = None
         for item in soup.find_all('dl', class_='block-thumbnail-t--goods'):
-            # カードの説明欄に「キズあり」があるかチェック
             comment = item.find(class_="block-thumbnail-t--comment")
             if comment and "キズあり" in comment.get_text():
-                continue # キズありならスキップ
+                continue
             
-            # リンクを拾う
             link = item.find('a', href=True)
             if link and "/shop/g/g" in link['href']:
                 href = link['href']
@@ -166,21 +169,19 @@ async def fetch_torecolo_price(session, torecolo_code):
             
         async with session.get(detail_url, headers=headers, timeout=10) as response:
             if response.status != 200:
+                print(f"[Torecolo Detail Error] Status {response.status} for URL: {detail_url}")
                 return "×", 0
             detail_html = await response.text()
             
         detail_soup = BeautifulSoup(detail_html, 'html.parser')
         
-        # 2. 売り切れチェック
         page_text = detail_soup.get_text()
         if "品切れ" in page_text or "SOLD OUT" in page_text or "売り切れ" in page_text:
             return "×", 0
             
-        # 3. 在庫数を正確に取得（最新構造：spec_stock_msg）
         stock_count = 0
         has_stock = False
         
-        # まずは一番確実な spec_stock_msg を狙う
         stock_elem = detail_soup.find(id="spec_stock_msg")
         if stock_elem:
             match_stock = re.search(r'\d+', stock_elem.get_text(strip=True))
@@ -189,7 +190,6 @@ async def fetch_torecolo_price(session, torecolo_code):
                 if stock_count > 0:
                     has_stock = True
         
-        # 4. 在庫が1以上あるなら価格を取得
         if has_stock:
             price_elem = detail_soup.find(class_=lambda x: x and 'price' in x) or detail_soup.find(id="price")
             if price_elem:
@@ -199,9 +199,13 @@ async def fetch_torecolo_price(session, torecolo_code):
                     return int(price_match.group()), stock_count
                 
         return "×", 0
-    except Exception:
+        
+    except asyncio.TimeoutError:
+        print(f"[Torecolo Timeout] コード: {torecolo_code}")
         return "×", 0
-# ... (上のコードのインポート部分は同じ)
+    except Exception as e:
+        print(f"[Torecolo Exception] コード: {torecolo_code} / エラー: {e}")
+        return "×", 0
 
 async def process_card(session, card, index, total_count, date_str, results_dict, semaphore, print_lock):
     async with semaphore:
@@ -224,10 +228,6 @@ async def process_card(session, card, index, total_count, date_str, results_dict
             "torecolo": torecolo_price
         }
 
-        # 処理が終わったタイミングで、100枚ごとの進捗をログに出す
-        if (index - 1) % 100 == 0:
-            async with print_lock:
-                print(f"📊 {index} 枚目処理完了: {card_name} (Search: {search_query} / TorecoloCode: {torecolo_code})")
 
 async def main():
     os.makedirs(DATA_DIR, exist_ok=True)
