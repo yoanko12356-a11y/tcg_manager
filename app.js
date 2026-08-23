@@ -46,6 +46,7 @@ function normalizeQuery(str) {
 function switchView(viewName) {
   const homeView = document.getElementById('home-view');
   const searchView = document.getElementById('search-view');
+  const collectionView = document.getElementById('collection-view'); // ★追加：コレクション用のビュー
   
   // アイコンをIDで取得
   const favoriteIcon = document.getElementById('favorite-icon');
@@ -53,19 +54,37 @@ function switchView(viewName) {
 
   if (!homeView || !searchView) return;
 
+  // いったんすべてのビューを非表示にする
+  homeView.style.display = 'none';
+  searchView.style.display = 'none';
+  if (collectionView) collectionView.style.display = 'none';
+
+  // モードごとに表示とアイコン・classを切り替える
   if (viewName === 'search') {
-    homeView.style.display = 'none';
     searchView.style.display = 'block';
-    document.body.classList.remove('home-mode');
+    document.body.classList.remove('home-mode', 'collection-mode');
     document.body.classList.add('search-mode');
     
     // 検索モード：active画像をセット
     if (favoriteIcon) favoriteIcon.src = 'images/nav-favorite-active.svg';
     if (marketIcon) marketIcon.src = 'images/nav-market-active.svg';
+
+  } else if (viewName === 'collection') { // ★追加：コレクションモードの処理
+    if (collectionView) {
+      collectionView.style.display = 'block';
+      renderCollectionCards(); // コレクション画面を開いたときにカード一覧を描画する関数！
+    }
+    document.body.classList.remove('home-mode', 'search-mode');
+    document.body.classList.add('collection-mode');
+    
+    // 必要に応じてアイコンのアクティブ状態も切り替えてね
+    // if (favoriteIcon) favoriteIcon.src = 'images/nav-favorite-active.svg';
+    // if (marketIcon) marketIcon.src = 'images/nav-market.svg';
+
   } else {
+    // ホームモード
     homeView.style.display = 'block';
-    searchView.style.display = 'none';
-    document.body.classList.remove('search-mode');
+    document.body.classList.remove('search-mode', 'collection-mode');
     document.body.classList.add('home-mode');
     
     // ホームモード：通常画像に戻す
@@ -87,10 +106,22 @@ function renderSearchResults(filterText = "", reset = false) {
   const normalizedQuery = normalizeQuery(filterText);
   
   // サブ検索の種別と値を取得
+  // 1. ヘッダー側のサブ検索やパワーの取得（既存）
   const subType = document.getElementById("sub-search-type") ? document.getElementById("sub-search-type").value : "text";
   const subQuery = document.getElementById("sub-search-input") ? normalizeQuery(document.getElementById("sub-search-input").value) : "";
   const powerMin = document.getElementById("power-min-input") ? parseInt(document.getElementById("power-min-input").value, 10) : NaN;
   const powerMax = document.getElementById("power-max-input") ? parseInt(document.getElementById("power-max-input").value, 10) : NaN;
+
+// ★スライドメニュー内にあるサブ検索の行を、最初からある1個目も含めてぜんぶまとめて取得する！
+  const slideSubRows = document.querySelectorAll(".sub-search-row");
+  const slideConditions = Array.from(slideSubRows).map(row => {
+    const typeSelect = row.querySelector(".slide-sub-type");
+    const inputEl = row.querySelector(".slide-sub-input");
+    return {
+      type: typeSelect ? typeSelect.value : "free",
+      val: inputEl ? normalizeQuery(inputEl.value) : ""
+    };
+  }).filter(cond => cond.val !== ""); // 文字が入っているものだけを抽出！
 
   // 選択中の文明ボタンを取得
   const selectedCivs = Array.from(document.querySelectorAll('.civ-btn.active')).map(b => b.dataset.civ);
@@ -186,20 +217,69 @@ function renderSearchResults(filterText = "", reset = false) {
     }
 
 
-    // 3. サブ検索（テキスト・パワー・種族）
-    if (subType === 'text' && subQuery) {
-      const cardTextNorm = normalizeQuery(card.text);
-      if (!cardTextNorm.includes(subQuery)) return false;
-    } else if (subType === 'race' && subQuery) {
-      const cardRaceNorm = normalizeQuery(card.race);
-      if (!cardRaceNorm.includes(subQuery)) return false;
-    } else if (subType === 'power') {
-      // パワーの数値比較（無限アタックや「+」付きの数値も考慮）
+    // 3. サブ検索（フリーワード・テキスト・種族） - ヘッダー側の既存処理
+    if (subQuery) {
+      const cardNameNorm = normalizeQuery(card.name || "");
+      const cardTextNorm = normalizeQuery(card.text || "");
+      const cardRaceNorm = normalizeQuery(card.race || "");
+
+      if (subType === 'free') {
+        const matchesSubFree = cardNameNorm.includes(subQuery) || 
+                               cardTextNorm.includes(subQuery) || 
+                               cardRaceNorm.includes(subQuery);
+        if (!matchesSubFree) return false;
+      } else if (subType === 'text') {
+        if (!cardTextNorm.includes(subQuery)) return false;
+      } else if (subType === 'race') {
+        if (!cardRaceNorm.includes(subQuery)) return false;
+      }
+    }
+
+    // ★スライドメニュー内で「＋」から増やしたサブ検索の条件をぜんぶチェックする処理
+    for (const cond of slideConditions) {
+      const cardNameNorm = normalizeQuery(card.name || "");
+      const cardTextNorm = normalizeQuery(card.text || "");
+      const cardRaceNorm = normalizeQuery(card.race || "");
+
+      if (cond.type === 'free') {
+        const matchFree = cardNameNorm.includes(cond.val) || cardTextNorm.includes(cond.val) || cardRaceNorm.includes(cond.val);
+        if (!matchFree) return false;
+      } else if (cond.type === 'text') {
+        if (!cardTextNorm.includes(cond.val)) return false;
+      } else if (cond.type === 'race') {
+        if (!cardRaceNorm.includes(cond.val)) return false;
+      }
+    }
+
+    // ★サブ検索の種類に関係なく、詳細オプションのパワー範囲指定が入力されていればここで絞り込む！
+    if (!isNaN(powerMin) || !isNaN(powerMax)) {
       const rawPower = card.power ? String(card.power).replace(/[^0-9]/g, "") : "";
       const cardPowerNum = rawPower ? parseInt(rawPower, 10) : 0;
+      const hasNumericPower = rawPower !== "";
 
-      if (!isNaN(powerMin) && cardPowerNum < powerMin) return false;
-      if (!isNaN(powerMax) && cardPowerNum > powerMax) return false;
+      if (!isNaN(powerMin)) {
+        if (!hasNumericPower || cardPowerNum < powerMin) return false;
+      }
+      if (!isNaN(powerMax)) {
+        if (!hasNumericPower || cardPowerNum > powerMax) return false;
+      }
+    }
+
+
+    // ★追加：詳細オプションのコスト範囲指定が入力されていればここで絞り込む！
+    const costMin = document.getElementById("cost-min-input") ? parseInt(document.getElementById("cost-min-input").value, 10) : NaN;
+    const costMax = document.getElementById("cost-max-input") ? parseInt(document.getElementById("cost-max-input").value, 10) : NaN;
+
+    if (!isNaN(costMin) || !isNaN(costMax)) {
+      const cardCostNum = (card.cost !== undefined && card.cost !== null) ? parseInt(card.cost, 10) : NaN;
+      const hasNumericCost = !isNaN(cardCostNum);
+
+      if (!isNaN(costMin)) {
+        if (!hasNumericCost || cardCostNum < costMin) return false;
+      }
+      if (!isNaN(costMax)) {
+        if (!hasNumericCost || cardCostNum > costMax) return false;
+      }
     }
 
     return true;
@@ -224,19 +304,62 @@ const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
     });
   }
 
+// ▼▼▼ 並び替え（ソート）処理の更新 ▼▼▼
+  const sortOrderSelect = document.getElementById('sort-order-select');
+  const sortOrder = sortOrderSelect ? sortOrderSelect.value : 'release-new';
+
+  if (sortOrder === 'release-new') {
+    // 発売日(新)：IDが大きい（新しい）順
+    displayCards.sort((a, b) => {
+      const idA = a.id !== undefined ? Number(a.id) : 0;
+      const idB = b.id !== undefined ? Number(b.id) : 0;
+      return idB - idA;
+    });
+  } else if (sortOrder === 'release-old') {
+    // 発売日(古)：IDが小さい（古い）順
+    displayCards.sort((a, b) => {
+      const idA = a.id !== undefined ? Number(a.id) : 0;
+      const idB = b.id !== undefined ? Number(b.id) : 0;
+      return idA - idB;
+    });
+  } else if (sortOrder === 'cost-desc') {
+    // コスト(高)：コストが大きい順
+    displayCards.sort((a, b) => {
+      const costA = (a.cost !== undefined && a.cost !== null) ? parseInt(a.cost, 10) : -1;
+      const costB = (b.cost !== undefined && b.cost !== null) ? parseInt(b.cost, 10) : -1;
+      return costB - costA;
+    });
+  } else if (sortOrder === 'cost-asc') {
+    // コスト(低)：コストが小さい順
+    displayCards.sort((a, b) => {
+      const costA = (a.cost !== undefined && a.cost !== null) ? parseInt(a.cost, 10) : 999;
+      const costB = (b.cost !== undefined && b.cost !== null) ? parseInt(b.cost, 10) : 999;
+      return costA - costB;
+    });
+  }
+  // ▲▲▲ ここまで ▲▲▲
+
+
   if (displayCards.length === 0) {
-    container.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">一致するカードが見つからなかったんだ...</p>`;
+    container.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">一致するカードが見つかりませんでした...</p>`;
     return;
   }
 
-  container.innerHTML = "";
-  const cardsToDisplay = displayCards.slice(0, displayedCount);
+container.innerHTML = "";
 
-  cardsToDisplay.forEach(card => {
-    const cardEl = document.createElement('div');
-    cardEl.className = 'card-item';
-    
-    const imageUrl = card.image_url || card.image || card.img || '';
+displayCards.forEach(card => {
+  const cardEl = document.createElement('div');
+
+  // ★ コレクションカードをドラッグ可能にする
+  cardEl.className = 'card-item draggable-card';
+  cardEl.setAttribute('draggable', 'true');
+
+  // ★ userCollectionのキーになる正式なカード名
+  cardEl.dataset.cardName = card.name;
+
+  cardEl.style.position = 'relative';
+
+  const imageUrl = card.image_url || card.image || card.img || '';
     const productCode = card.product_code || '26EX2 70/89';
 
     const cardName = card.name;
@@ -278,6 +401,8 @@ const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
       </div>
     `;
 
+    cardEl.dataset.cardName = card.name;
+
     cardEl.addEventListener('click', () => {
       openCardModal({
         image: imageUrl,
@@ -298,9 +423,16 @@ document.addEventListener("DOMContentLoaded", () => {
   civButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       btn.classList.toggle('active'); // 複数選択のためにトグルするよ！
-      switchView('search');
-      const searchInput = document.getElementById("search-input");
-      renderSearchResults(searchInput ? searchInput.value : "", true);
+      
+      // ★いまコレクション画面が開いているかどうかをチェックするんだ！
+      const collectionView = document.getElementById('collection-view');
+      if (collectionView && collectionView.style.display !== 'none') {
+        renderCollectionCards(); // コレクション画面ならコレクション用を再描画！
+      } else {
+        switchView('search');
+        const searchInput = document.getElementById("search-input");
+        renderSearchResults(searchInput ? searchInput.value : "", true);
+      }
     });
   });
 
@@ -324,7 +456,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 入力時のイベント
-  ['sub-search-input', 'power-min-input', 'power-max-input'].forEach(id => {
+  ['sub-search-input', 'power-min-input', 'power-max-input', 'cost-min-input', 'cost-max-input'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener("input", () => {
@@ -422,7 +554,7 @@ function renderCards(cards, targetId, type) {
   container.innerHTML = '';
 
   if (cards.length === 0) {
-    container.innerHTML = `<p style="padding: 10px; color: #666; font-size: 0.85rem;">該当するカードがないんだ...</p>`;
+    container.innerHTML = `<p style="padding: 10px; color: #666; font-size: 0.85rem;">該当するカードが見当たりません</p>`;
     return;
   }
 
@@ -522,6 +654,8 @@ function renderCards(cards, targetId, type) {
         <div class="price-change ${changeClass}">${changeText}</div>
       </div>
     `;
+    
+    cardEl.dataset.cardName = card.name;
 
     cardEl.addEventListener('click', () => {
       openCardModal({
@@ -566,6 +700,13 @@ function setupNavigationAndSearch() {
     });
   });
 
+  // ★ここに追加するよ！コレクションタブがクリックされたときの処理
+  document.querySelectorAll('[data-tab="collection"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      switchView('collection');
+    });
+  });
+
   if (logoHome) {
     logoHome.addEventListener("click", () => {
       switchView('home');
@@ -583,19 +724,19 @@ function setupNavigationAndSearch() {
   }
 
   window.addEventListener('scroll', () => {
-  const searchView = document.getElementById('search-view');
-  // 検索画面が表示されているときだけ発火させる
-  if (searchView && searchView.style.display !== 'none') {
-    const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-    // ページの一番下からあと 200px くらいの位置に来たら次の50枚をロード！
-    if (scrollTop + clientHeight >= scrollHeight - 200) {
-      displayedCount += 50;
-      const searchInput = document.getElementById("search-input");
-      const query = searchInput ? searchInput.value : "";
-      renderSearchResults(query, false);
+    const searchView = document.getElementById('search-view');
+    // 検索画面が表示されているときだけ発火させる
+    if (searchView && searchView.style.display !== 'none') {
+      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+      // ページの一番下からあと 200px くらいの位置に来たら次の50枚をロード！
+      if (scrollTop + clientHeight >= scrollHeight - 200) {
+        displayedCount += 50;
+        const searchInput = document.getElementById("search-input");
+        const query = searchInput ? searchInput.value : "";
+        renderSearchResults(query, false);
+      }
     }
-  }
-});
+  });
 }
 
 const modal = document.getElementById('card-modal');
@@ -820,7 +961,7 @@ function openCardModal(cardData) {
     
     // データが取れなかったときの保険
     if (!shopsHtml) {
-      shopsHtml = `<li class="shop-item" style="justify-content: center; color: #888;">現在取り扱いのあるショップ情報がないんだ…！</li>`;
+      shopsHtml = `<li class="shop-item" style="justify-content: center; color: #888;">現在取り扱いのあるショップ情報が見当たりません</li>`;
     }
     
     shopListContainer.innerHTML = shopsHtml;
@@ -874,7 +1015,18 @@ if (toggleBtn) {
 document.addEventListener("DOMContentLoaded", () => {
   setupNavigationAndSearch();
   loadCards();
-  loadPrices(); // ここで価格データも一緒に読み込む！
+  loadPrices();
+
+
+  // ▼ 並び替えセレクトボックスの変更検知 ▼
+  const sortOrderSelect = document.getElementById('sort-order-select');
+  if (sortOrderSelect) {
+    sortOrderSelect.addEventListener('change', () => {
+      switchView('search');
+      const searchInput = document.getElementById("search-input");
+      renderSearchResults(searchInput ? searchInput.value : "", true);
+    });
+  }
 
   // ▼ チェックボックスの切り替えで再描画する処理 ▼
   const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
@@ -886,7 +1038,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // ▼【ここも追加！】AND/ORの切り替えで再描画する処理
+  // ▼ AND/ORの切り替えで再描画する処理
   const matchModeSelect = document.getElementById('civMatchMode');
   if (matchModeSelect) {
     matchModeSelect.addEventListener('change', () => {
@@ -895,15 +1047,14 @@ document.addEventListener("DOMContentLoaded", () => {
       renderSearchResults(searchInput ? searchInput.value : "", true);
     });
   }
-  
 
-  // ▼【ここも追加！】カード画像を大きくする処理 ▼
+  // ▼ カード画像を大きくする処理 ▼
   const modalImg = document.getElementById('modal-card-img');
   const zoomModal = document.getElementById('image-zoom-modal');
   const zoomedImg = document.getElementById('zoomed-card-img');
 
   if (modalImg && zoomModal && zoomedImg) {
-    modalImg.style.cursor = 'zoom-in'; // カーソルを虫眼鏡っぽくする
+    modalImg.style.cursor = 'zoom-in';
     modalImg.addEventListener('click', () => {
       zoomedImg.src = modalImg.src;
       zoomModal.style.display = 'flex';
@@ -913,7 +1064,6 @@ document.addEventListener("DOMContentLoaded", () => {
       zoomModal.style.display = 'none';
     });
   }
-
 
   // --- ⚙️ 詳細オプション（右からスライドするメニュー）の開閉処理 ---
   const filterBtn = document.getElementById('filter-toggle-btn');
@@ -945,5 +1095,748 @@ document.addEventListener("DOMContentLoaded", () => {
         optionsBackdrop.classList.remove('show');
       });
     }
+  }
+
+  // --- ★【重要】最初から存在する1個目のサブ検索欄に対するイベント設定・共通化関数 ---
+  function bindSubSearchRowEvents(row) {
+    const inputEl = row.querySelector(".slide-sub-input");
+    const typeSelect = row.querySelector(".slide-sub-type");
+    const removeBtn = row.querySelector(".remove-sub-search-btn");
+
+    if (inputEl) {
+      inputEl.addEventListener("input", () => {
+        switchView('search');
+        const searchInput = document.getElementById("search-input");
+        renderSearchResults(searchInput ? searchInput.value : "", true);
+      });
+    }
+
+    if (typeSelect) {
+      typeSelect.addEventListener("change", () => {
+        switchView('search');
+        const searchInput = document.getElementById("search-input");
+        renderSearchResults(searchInput ? searchInput.value : "", true);
+      });
+    }
+
+    if (removeBtn) {
+      removeBtn.addEventListener("click", () => {
+        // 1個目しかない場合は削除させずに中身をクリアにするか、そのまま消すかの制御
+        const container = document.getElementById("dynamic-sub-search-container");
+        if (container && container.querySelectorAll(".sub-search-row").length > 1) {
+          row.remove();
+        } else {
+          if (inputEl) inputEl.value = "";
+        }
+        switchView('search');
+        const searchInput = document.getElementById("search-input");
+        renderSearchResults(searchInput ? searchInput.value : "", true);
+      });
+    }
+  }
+
+  // 1. まず、最初からHTMLにある1個目のサブ検索行にイベントをバインド！[cite: 7]
+  document.querySelectorAll(".sub-search-row").forEach(row => {
+    bindSubSearchRowEvents(row);
+  });
+
+  // 2. スライドメニュー内の「＋」ボタンでサブ検索行を増やす処理
+  const addSubBtn = document.getElementById("add-sub-search-btn");
+  const dynamicContainer = document.getElementById("dynamic-sub-search-container");
+
+  if (addSubBtn && dynamicContainer) {
+    addSubBtn.addEventListener("click", () => {
+      const newRow = document.createElement("div");
+      newRow.className = "sub-search-row";
+      newRow.style.cssText = "display: flex; gap: 6px; align-items: center; margin-top: 6px;";
+      newRow.innerHTML = `
+        <select class="slide-sub-type" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #fff; outline: none;">
+          <option value="free">フリー</option>
+          <option value="text">テキスト</option>
+          <option value="race">種族</option>
+        </select>
+        <div style="position: relative; flex: 1; display: flex; align-items: center;">
+          <input type="text" class="slide-sub-input" placeholder="追加キーワード..." style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;" />
+          <button type="button" class="remove-sub-search-btn" style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;" title="削除">✕</button>
+        </div>
+      `;
+
+      // 作成した新しい行にも同じイベントを適用！
+      bindSubSearchRowEvents(newRow);
+
+      dynamicContainer.appendChild(newRow);
+    });
+  }
+
+// ▼「条件をリセット」ボタンの処理
+  const resetFiltersBtn = document.getElementById("reset-filters-btn");
+  if (resetFiltersBtn) {
+    resetFiltersBtn.addEventListener("click", () => {
+      // ★すでにある searchInput 変数があればそのまま中身を空にする！
+      const searchInputEl = document.getElementById("search-input");
+      if (searchInputEl) searchInputEl.value = "";
+
+      // パワー・コスト入力クリア
+      ['power-min-input', 'power-max-input', 'cost-min-input', 'cost-max-input', 'sub-search-input'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+
+      // スライド内のサブ検索欄も1個目以外を削除し、1個目の中身を空にする
+      const container = document.getElementById("dynamic-sub-search-container");
+      if (container) {
+        container.innerHTML = `
+          <div class="sub-search-row" style="display: flex; gap: 6px; align-items: center;">
+            <select class="slide-sub-type" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #fff; outline: none;">
+              <option value="free">フリー</option>
+              <option value="text">テキスト</option>
+              <option value="race">種族</option>
+            </select>
+            <div style="position: relative; flex: 1; display: flex; align-items: center;">
+              <input type="text" class="slide-sub-input" placeholder="追加キーワード..." style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;" />
+              <button class="remove-sub-search-btn" style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;" title="削除">✕</button>
+            </div>
+          </div>
+        `;
+        const firstNewRow = container.querySelector(".sub-search-row");
+        if (firstNewRow) bindSubSearchRowEvents(firstNewRow);
+      }
+
+      // 文明ボタンのアクティブも全部外す
+      document.querySelectorAll('.civ-btn').forEach(b => b.classList.remove('active'));
+
+      switchView('search');
+      renderSearchResults("", true); // 空文字を渡して全カードを再表示！
+    });
+  }
+});
+
+let userCollection = JSON.parse(localStorage.getItem('tcg_collection')) || {};
+
+// コレクションデータを保存する関数
+function saveCollection() {
+  localStorage.setItem('tcg_collection', JSON.stringify(userCollection));
+}
+
+
+
+function renderCollectionCards() {
+  const container = document.getElementById("collection-results-grid");
+  if (!container) return;
+
+  console.log("【デバッグ】現在の userCollection のキー一覧:", Object.keys(userCollection));
+  console.log("【デバッグ】全カードデータの最初の1件の name:", allCards[0] ? allCards[0].name : "データなし");
+  
+
+  // 1. コレクションに入っているカード名（枚数が1枚以上）を抽出
+  const collectedCardNames = Object.keys(userCollection).filter(name => userCollection[name] > 0);
+  
+  // 2. そのまま完全一致するカードだけを表示用に絞り込むよ！
+  let displayCards = allCards.filter(card => collectedCardNames.includes(card.name));
+
+  // 2. コレクション専用の検索キーワード適用
+  const searchInput = document.getElementById("collection-search-input");
+  const keyword = searchInput ? normalizeQuery(searchInput.value) : "";
+
+  if (keyword) {
+    displayCards = displayCards.filter(card => {
+      const nameNorm = normalizeQuery(card.name || "");
+      const codeNorm = normalizeQuery(card.product_code || "");
+      const raceNorm = normalizeQuery(card.race || "");
+      const textNorm = normalizeQuery(card.text || "");
+      return nameNorm.includes(keyword) || codeNorm.includes(keyword) || raceNorm.includes(keyword) || textNorm.includes(keyword);
+    });
+  }
+
+  // 3. 検索画面と共通の文明フィルターが選ばれていれば連動させる
+  const selectedCivs = Array.from(document.querySelectorAll('.civ-btn.active')).map(b => b.dataset.civ);
+  if (selectedCivs.length > 0) {
+    displayCards = displayCards.filter(card => {
+      const rawCivs = card.civilizations || [];
+      let civs = [];
+      rawCivs.forEach(c => {
+        if (typeof c === 'string') civs.push(...c.split('/'));
+        else civs.push(c);
+      });
+      civs = [...new Set(civs)];
+
+      const isMulti = civs.length > 1;
+      const isMono = !isMulti && civs.length === 1;
+      const civButtons = selectedCivs.filter(c => !['単色', '多色'].includes(c));
+      const hasMultiSelected = selectedCivs.includes('多色');
+      const hasMonoSelected = selectedCivs.includes('単色');
+
+      let matchesCiv = true;
+      if (civButtons.length === 0) {
+        if (hasMultiSelected && !hasMonoSelected && !isMulti) matchesCiv = false;
+        if (hasMonoSelected && !hasMultiSelected && !isMono) matchesCiv = false;
+      } else {
+        const hasMatchedCiv = civs.some(c => civButtons.includes(c));
+        const hasExtraCivs = civs.some(c => !civButtons.includes(c));
+        if (civButtons.length === 1) {
+          if (!civs.includes(civButtons[0])) matchesCiv = false;
+        } else {
+          if (!hasMatchedCiv || hasExtraCivs) matchesCiv = false;
+        }
+      }
+      return matchesCiv;
+    });
+  }
+
+  // 4. 並べ替え（ソート）処理
+  const sortSelect = document.getElementById('collection-sort-select');
+  const sortOrder = sortSelect ? sortSelect.value : 'release-new';
+
+  if (sortOrder === 'release-new') {
+    displayCards.sort((a, b) => (b.id !== undefined ? Number(b.id) : 0) - (a.id !== undefined ? Number(a.id) : 0));
+  } else if (sortOrder === 'release-old') {
+    displayCards.sort((a, b) => (a.id !== undefined ? Number(a.id) : 0) - (b.id !== undefined ? Number(b.id) : 0));
+  } else if (sortOrder === 'cost-desc') {
+    displayCards.sort((a, b) => (parseInt(b.cost, 10) || -1) - (parseInt(a.cost, 10) || -1));
+  } else if (sortOrder === 'cost-asc') {
+    displayCards.sort((a, b) => (parseInt(a.cost, 10) || 999) - (parseInt(b.cost, 10) || 999));
+  }
+
+  if (displayCards.length === 0) {
+    container.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">条件に一致するコレクションカードがありません...</p>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  displayCards.forEach(card => {
+  const cardEl = document.createElement('div');
+
+  cardEl.className = 'card-item draggable-card';
+  cardEl.setAttribute('draggable', 'true');
+
+  // userCollectionのキーになる正式名称を保存
+  cardEl.dataset.cardName = card.name;
+
+  cardEl.style.position = 'relative';
+    
+    const imageUrl = card.image_url || card.image || card.img || '';
+    const productCode = card.product_code || '';
+    let displayName = card.name || 'カード名';
+    let displayCode = productCode;
+    
+    const match = card.name ? card.name.match(/^(.*?)\((.*?)\)$/) : null;
+    if (match) {
+      displayName = match[1].trim();
+      displayCode = match[2].trim();
+    }
+
+    const count = userCollection[card.name] || 1;
+
+    // 最新価格の取得
+    let todayStr = "2026-08-22";
+    let lowestPrice = null;
+    if (priceData && priceData[card.name] && priceData[card.name][todayStr]) {
+      const cardPrices = priceData[card.name][todayStr];
+      const pricesArr = [];
+      if (cardPrices.cardrush && Array.isArray(cardPrices.cardrush)) {
+        const p = cardPrices.cardrush[0];
+        if (p !== "×" && typeof p === 'number' && p > 0) pricesArr.push(p);
+      }
+      if (cardPrices.torecolo && Array.isArray(cardPrices.torecolo)) {
+        const p = cardPrices.torecolo[0];
+        if (p !== "×" && typeof p === 'number' && p > 0) pricesArr.push(p);
+      }
+      if (pricesArr.length > 0) lowestPrice = Math.min(...pricesArr);
+    }
+    const currentPriceText = lowestPrice !== null ? `¥${Number(lowestPrice).toLocaleString()}` : "¥—";
+
+    cardEl.innerHTML = `
+      <div style="
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #ff4757;
+        color: #fff;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: bold;
+        border-radius: 50%;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        z-index: 2;
+      ">×${count}</div>
+      <img src="${imageUrl}" alt="${displayName}" loading="lazy">
+      <div class="card-code">${displayCode}</div>
+      <div class="card-title" title="${displayName}">${displayName}</div>
+      <div class="price-container">
+        <div class="price-transition" style="color: #3b82f6;">${currentPriceText}</div>
+      </div>
+    `;
+
+    cardEl.addEventListener('click', () => {
+      openCardModal({
+        image: imageUrl,
+        name: card.name,
+        code: productCode,
+        price: currentPriceText
+      });
+    });
+
+    container.appendChild(cardEl);
+  });
+}
+
+
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  // 1. 画面右下のフローティングボタン作成
+  const existingBtn = document.getElementById('floating-add-card-btn');
+  if (existingBtn) existingBtn.remove();
+
+  const floatingBtn = document.createElement('button');
+  floatingBtn.id = 'floating-add-card-btn';
+  floatingBtn.title = 'カードを追加';
+  floatingBtn.innerHTML = `<span>＋ カードを追加</span>`;
+  floatingBtn.style.cssText = `
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    height: 52px;
+    padding: 0 22px;
+    border-radius: 26px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    z-index: 1998;
+    transition: transform 0.2s ease, background 0.2s ease;
+  `;
+
+  floatingBtn.onmouseover = () => { 
+    floatingBtn.style.transform = 'scale(1.05)'; 
+    floatingBtn.style.background = '#2563eb'; 
+  };
+  floatingBtn.onmouseout = () => { 
+    floatingBtn.style.transform = 'scale(1)'; 
+    floatingBtn.style.background = '#3b82f6'; 
+  };
+
+  document.body.appendChild(floatingBtn);
+
+  const drawer = document.getElementById('search-drawer');
+  const backdrop = document.getElementById('search-drawer-backdrop');
+  const closeBtn = document.getElementById('search-drawer-close');
+
+  // 💡 裏のぼかし（バックドロップ）を表示させないように非表示に固定
+  if (backdrop) {
+    backdrop.style.display = 'none';
+  }
+
+  // --- ★ここにドロワー用の検索窓を動的生成して差し込むよ！ ---
+  const drawerSearchInput = document.createElement('input');
+  drawerSearchInput.type = 'text';
+  drawerSearchInput.id = 'drawer-search-input';
+  drawerSearchInput.placeholder = 'カード名や型番で検索...';
+  drawerSearchInput.style.cssText = `
+    width: 100%;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+    outline: none;
+  `;
+
+  if (drawer) {
+    const drawerHeader = drawer.querySelector('.drawer-header') || drawer.firstElementChild;
+    if (drawerHeader) {
+      drawerHeader.insertAdjacentElement('afterend', drawerSearchInput);
+    }
+  }
+
+  // --- ★ドロワー内の検索結果を描画する関数 ---
+  function renderDrawerSearchResults() {
+    const drawerResultsGrid = document.getElementById('drawer-search-results');
+    if (!drawerResultsGrid) return;
+
+    // --- ★ここからドロップの受け入れ設定を追加するよ！ ---
+    // 【修正後】
+    if (!drawerResultsGrid.dataset.dropInitialized) {
+      drawerResultsGrid.dataset.dropInitialized = "true";
+
+      // ドラッグオーバーを許可する（これがないとドロップできないんだ！）
+      drawerResultsGrid.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+
+      // ドロワーにドロップされたときの処理
+      drawerResultsGrid.addEventListener('drop', (e) => {
+        e.preventDefault();
+
+        // ドラッグされたカードの名前と、どこから持ってきたかを取得する
+        let cardName = e.dataTransfer.getData('card/name') || e.dataTransfer.getData('text/plain');
+        const sourceArea = e.dataTransfer.getData('source/area');
+
+        if (!cardName) return;
+
+        // コレクション（または他の場所）からドロワーにドロップされた場合
+        if (sourceArea === 'collection' && typeof userCollection !== 'undefined') {
+          if (userCollection[cardName] && userCollection[cardName] > 0) {
+            // 枚数をマイナス1する
+            userCollection[cardName] -= 1;
+            
+            // 0以下になったらコレクションから消す
+            if (userCollection[cardName] <= 0) {
+              delete userCollection[cardName];
+            }
+
+            // 変更を保存する
+            if (typeof saveCollection === 'function') {
+              saveCollection();
+            }
+            
+            // コレクション画面が表示中なら、画面を更新して枚数の減りを反映する
+            const collectionView = document.getElementById('collection-view');
+            if (collectionView && collectionView.style.display !== 'none') {
+              if (typeof renderCollectionCards === 'function') {
+                renderCollectionCards();
+              }
+            }
+
+            // ドロワー側の表示も更新する
+            if (typeof renderDrawerSearchResults === 'function') {
+              renderDrawerSearchResults();
+            }
+          }
+        }
+      });
+    }
+    // --- ★ここまで追加 ---
+
+
+    const drawerSelectedCivs =
+  Array.from(
+    document.querySelectorAll('.drawer-civ-btn.active')
+  ).map(btn => btn.dataset.civ);
+
+const filtered = allCards.filter(card => {
+
+  // キーワード検索
+  const nameNorm =
+    normalizeQuery(card.name || "");
+
+  const codeNorm =
+    normalizeQuery(card.product_code || "");
+
+  const raceNorm =
+    normalizeQuery(card.race || "");
+
+  const matchesKeyword =
+    !query ||
+    nameNorm.includes(query) ||
+    codeNorm.includes(query) ||
+    raceNorm.includes(query);
+
+
+  // 文明フィルター
+  let matchesCiv = true;
+
+  if (drawerSelectedCivs.length > 0) {
+
+    const rawCivs =
+      card.civilizations || [];
+
+    let civs = [];
+
+    rawCivs.forEach(civ => {
+      if (typeof civ === 'string') {
+        civs.push(...civ.split('/'));
+      } else {
+        civs.push(civ);
+      }
+    });
+
+    civs = [...new Set(civs)];
+
+    const normalCivs =
+      drawerSelectedCivs.filter(
+        civ =>
+          civ !== '単色' &&
+          civ !== '多色'
+      );
+
+    const wantsMulti =
+      drawerSelectedCivs.includes('多色');
+
+    const wantsMono =
+      drawerSelectedCivs.includes('単色');
+
+    const isMulti =
+      civs.length > 1;
+
+    const isMono =
+      civs.length === 1;
+
+    matchesCiv =
+      (
+        normalCivs.length === 0 ||
+        normalCivs.some(civ =>
+          civs.includes(civ)
+        )
+      )
+      &&
+      (
+        !wantsMulti ||
+        isMulti
+      )
+      &&
+      (
+        !wantsMono ||
+        isMono
+      );
+  }
+
+  return matchesKeyword && matchesCiv;
+});
+
+    drawerResultsGrid.innerHTML = "";
+
+    if (filtered.length === 0) {
+      drawerResultsGrid.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">一致するカードが見つかりませんでした...</p>`;
+      return;
+    }
+
+    const cardsToDisplay = filtered.slice(0, 100);
+
+    cardsToDisplay.forEach(card => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'card-item draggable-card';
+      cardEl.setAttribute('draggable', 'true');
+      
+      const imageUrl = card.image_url || card.image || card.img || '';
+      let displayName = card.name || 'カード名';
+      let displayCode = card.product_code || '';
+      
+      const match = card.name ? card.name.match(/^(.*?)\((.*?)\)$/) : null;
+      if (match) {
+        displayName = match[1].trim();
+        displayCode = match[2].trim();
+      }
+
+      cardEl.innerHTML = `
+        <img src="${imageUrl}" alt="${displayName}" loading="lazy">
+        <div class="card-code">${displayCode}</div>
+        <div class="card-title" title="${displayName}">${displayName}</div>
+      `;
+
+      // ★ここに元データのカード名を直接覚えさせておくよ！
+      cardEl.dataset.cardName = card.name;
+
+      cardEl.addEventListener('dragstart', (e) => {
+        // datasetから確実に元の名前を取得して渡すんだ！
+        const targetName = cardEl.dataset.cardName || card.name;
+        e.dataTransfer.setData('text/plain', targetName);
+        e.dataTransfer.setData('card/name', targetName);
+        e.dataTransfer.setData('card/code', displayCode);
+        e.dataTransfer.setData('source/area', 'drawer'); // どこからドラッグしたかも持たせると親切だよ！
+      });
+
+      drawerResultsGrid.appendChild(cardEl);
+    });
+  }
+
+  // 検索窓に入力があったらリアルタイムで絞り込む
+  drawerSearchInput.addEventListener('input', () => {
+    renderDrawerSearchResults();
+  });
+
+  // ★ ドロワーの文明フィルター
+const drawerCivButtons =
+  document.querySelectorAll('.drawer-civ-btn');
+
+drawerCivButtons.forEach(button => {
+
+  button.addEventListener('click', () => {
+
+    button.classList.toggle('active');
+
+    renderDrawerSearchResults();
+
+  });
+
+});
+
+
+  function openDrawer() {
+    if (drawer) drawer.classList.add('show');
+    renderDrawerSearchResults(); // 開いたときに描画を走らせるよ！
+  }
+
+  function closeDrawer() {
+    if (drawer) drawer.classList.remove('show');
+  }
+
+  floatingBtn.addEventListener('click', openDrawer);
+  if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+
+
+  // 2. ドロワー内のカードのドラッグ開始設定（イベント委譲で確実にするよ）
+// 2. ドロワー内のカードのドラッグ開始設定（イベント委譲で確実にするよ）
+const drawerResults = document.getElementById('drawer-search-results');
+  if (drawerResults) {
+    drawerResults.addEventListener('dragstart', (e) => {
+      const cardItem = e.target.closest('.draggable-card');
+      if (!cardItem) return;
+
+      // ★覚えさせておいた正式な card.name を最優先で取得するよ！
+      const cardName = cardItem.dataset.cardName || cardItem.querySelector('.card-title').textContent;
+      
+      const codeEl = cardItem.querySelector('.card-code');
+      const cardCode = codeEl ? codeEl.textContent : '';
+
+      dragStartY = e.clientY;
+      e.dataTransfer.setData('text/plain', cardName);
+      e.dataTransfer.setData('card/name', cardName);
+      e.dataTransfer.setData('card/code', cardCode);
+      e.dataTransfer.setData('source/area', 'drawer');
+      console.log("ドロワーからドラッグ開始:", cardName);
+    });
+  }
+
+  // コレクション内のカードをドラッグしたときの開始位置記録
+  const collectionGridEl = document.getElementById('collection-results-grid');
+  if (collectionGridEl) {
+    collectionGridEl.addEventListener('dragstart', (e) => {
+      const cardItem = e.target.closest('.card-item');
+      if (!cardItem) return;
+
+      // ★ここを cardItem.dataset.cardName（型番入りの正式名）を最優先で取得するようにするよ！
+      const cardName = cardItem.dataset.cardName || (cardItem.querySelector('.card-title') ? cardItem.querySelector('.card-title').textContent : '');
+      const codeEl = cardItem.querySelector('.card-code');
+      const cardCode = codeEl ? codeEl.textContent : '';
+
+      dragStartY = e.clientY;
+      e.dataTransfer.setData('text/plain', cardName);
+      e.dataTransfer.setData('card/name', cardName);
+      e.dataTransfer.setData('card/code', cardCode);
+      e.dataTransfer.setData('source/area', 'collection');
+      console.log("コレクションからドラッグ開始:", cardName);
+    });
+
+    collectionGridEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      collectionGridEl.classList.add('drag-over');
+    });
+
+    collectionGridEl.addEventListener('dragleave', () => {
+      collectionGridEl.classList.remove('drag-over');
+    });
+
+    collectionGridEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      collectionGridEl.classList.remove('drag-over');
+      console.log("ドロップされたよ！");
+
+      let cardName = e.dataTransfer.getData('card/name') || e.dataTransfer.getData('text/plain');
+      const sourceArea = e.dataTransfer.getData('source/area');
+
+      console.log("取得データ - カード名:", cardName, " / エリア:", sourceArea);
+
+      if (!cardName) return;
+
+      const dropEndY = e.clientY;
+      const moveDistance = dropEndY - dragStartY;
+
+      if (typeof userCollection !== 'undefined') {
+        console.log("ドロップ前の保有数:", userCollection[cardName]);
+
+        // ★ コレクションの中からドラッグを始めた場合、または下に動かした場合はマイナスにする！
+        if (sourceArea === 'collection') {
+          if (userCollection[cardName] && userCollection[cardName] > 0) {
+            userCollection[cardName] -= 1;
+            if (userCollection[cardName] <= 0) {
+              delete userCollection[cardName];
+            }
+          }
+        } else if (sourceArea === 'drawer') {
+          // ドロワーから持ってきた場合はプラス！
+          userCollection[cardName] = (userCollection[cardName] || 0) + 1;
+        }
+
+        console.log("ドロップ後の保有数:", userCollection[cardName]);
+        
+        if (typeof saveCollection === 'function') saveCollection();
+        
+        if (typeof switchView === 'function') {
+          switchView('collection');
+        }
+        if (typeof renderCollectionCards === 'function') {
+          console.log("renderCollectionCards を実行するよ！");
+          renderCollectionCards();
+        }
+      }
+    });
+  }
+
+
+// ★検索結果を表示するグリッドなどでもドロップを確実に許可するよ！
+  const searchResultsGrid = document.getElementById('search-results-grid');
+  if (searchResultsGrid) {
+    searchResultsGrid.addEventListener('dragover', (e) => {
+      e.preventDefault(); // これがないとdropイベントが発火しないんだよ！
+    });
+
+    searchResultsGrid.addEventListener('drop', (e) => {
+      e.preventDefault();
+
+      let cardName = e.dataTransfer.getData('card/name') || e.dataTransfer.getData('text/plain');
+      const sourceArea = e.dataTransfer.getData('source/area');
+
+      console.log("検索グリッドにドロップされたよ - カード:", cardName, " / エリア:", sourceArea);
+
+      if (!cardName) return;
+
+      // コレクションから引っ張ってきた場合のみ減算！
+      if (sourceArea === 'collection' && typeof userCollection !== 'undefined') {
+        if (userCollection[cardName] && userCollection[cardName] > 0) {
+          userCollection[cardName] -= 1;
+          if (userCollection[cardName] <= 0) {
+            delete userCollection[cardName];
+          }
+          console.log("減算後の保有数:", userCollection[cardName]);
+
+          if (typeof saveCollection === 'function') saveCollection();
+          
+          const collectionView = document.getElementById('collection-view');
+          if (collectionView && collectionView.style.display !== 'none') {
+            if (typeof renderCollectionCards === 'function') renderCollectionCards();
+          }
+        }
+      }
+    });
+  }
+  // ★ここまで追加！
+
+
+  // 4. コレクション用の検索・ソート用インプットのイベントリスナー
+  const colSearchInput = document.getElementById("collection-search-input");
+  if (colSearchInput) {
+    colSearchInput.addEventListener("input", () => {
+      if (typeof renderCollectionCards === 'function') renderCollectionCards();
+    });
+  }
+
+  const colSortSelect = document.getElementById("collection-sort-select");
+  if (colSortSelect) {
+    colSortSelect.addEventListener("change", () => {
+      if (typeof renderCollectionCards === 'function') renderCollectionCards();
+    });
   }
 });

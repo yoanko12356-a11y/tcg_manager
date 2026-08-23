@@ -557,3 +557,93 @@ body.search-mode .nav-buttons-group {
   visibility: visible;
   opacity: 1;
 }
+
+/* --- 画面下からスライドしてくる検索画面パネル --- */
+#search-drawer {
+  position: fixed;
+  bottom: -100vh;
+  left: 0;
+  width: 100vw;
+  height: 55vh;
+  max-height: 70vh;
+  background: #ffffff;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 2000;
+  padding: 24px;
+  box-sizing: border-box;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  
+  visibility: hidden;
+  opacity: 0;
+  transition: bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, visibility 0.3s ease;
+}
+
+#search-drawer.show {
+  bottom: 0;
+  visibility: visible;
+  opacity: 1;
+}
+
+/* 検索結果部分のスクロール設定 */
+#drawer-search-results {
+  overflow-y: auto;
+  flex: 1;
+  max-height: calc(70vh - 100px);
+}
+
+#search-drawer-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1999;
+  backdrop-filter: blur(2px);
+  
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+#search-drawer-backdrop.show {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ドラッグ＆ドロップ用スタイル */
+.draggable-card {
+  cursor: grab;
+  user-select: none;
+}
+
+.draggable-card:active {
+  cursor: grabbing;
+}
+
+#collection-results-grid.drag-over {
+  background-color: #f1f5f9;
+  border: 2px dashed #3b82f6;
+  border-radius: 12px;
+}
+
+/* --- ドロワー内のドラッグ＆ドロップを確実にするためのスタイル --- */
+
+/* --- 修正：ドロワーの検索結果エリア自体にしっかりドロップ判定を持たせる --- */
+#drawer-search-results {
+  position: relative;
+  pointer-events: auto !important; /* グリッド自体は確実にイベントを受け付けるようにする！ */
+}
+
+/* 子要素の細かい要素が邪魔をする場合は、必要に応じて個別にスルーさせるか、今回はポインター有効に戻すよ */
+#drawer-search-results * {
+  pointer-events: auto;
+}
+
+/* ただし、カード自体やボタンなどのインタラクティブな操作が必要な部分は個別に有効に戻すこともできるよ */
+#drawer-search-results .card-item,
+#drawer-search-results .draggable-card {
+  pointer-events: auto;
+}
