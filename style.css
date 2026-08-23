@@ -510,7 +510,7 @@ body.search-mode .nav-buttons-group {
 }
 
 /* --- 画面右からスライドしてくる詳細オプションメニュー --- */
-#options-popup {
+#options-popup, #drawer-options-popup {
   position: fixed;
   top: 0;
   right: -320px; /* 最初は画面の右外側に隠す */
@@ -518,7 +518,7 @@ body.search-mode .nav-buttons-group {
   height: 100vh;
   background: #ffffff;
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
-  z-index: 2000;
+  z-index: 3000;
   padding: 24px;
   box-sizing: border-box;
   overflow-y: auto;
@@ -530,21 +530,21 @@ body.search-mode .nav-buttons-group {
 }
 
 /* 「show」クラスがついたときに見える位置にスライドインする */
-#options-popup.show {
+#options-popup.show, #drawer-options-popup.show {
   right: 0;
   visibility: visible;
   opacity: 1;
 }
 
 /* ポップアップが開いているときの背景オーバーレイ */
-#options-backdrop {
+#options-backdrop, #drawer-options-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.4);
-  z-index: 1999;
+  z-index: 2999;
   backdrop-filter: blur(2px);
   
   /* 🌟 こちらもdisplayではなくvisibilityとopacityでアニメーションさせる */
@@ -553,7 +553,7 @@ body.search-mode .nav-buttons-group {
   transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
-#options-backdrop.show {
+#options-backdrop.show, #drawer-options-backdrop.show {
   visibility: visible;
   opacity: 1;
 }
@@ -591,6 +591,10 @@ body.search-mode .nav-buttons-group {
   overflow-y: auto;
   flex: 1;
   max-height: calc(70vh - 100px);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 8px 4px;
 }
 
 #search-drawer-backdrop {
@@ -631,16 +635,73 @@ body.search-mode .nav-buttons-group {
 
 /* --- ドロワー内のドラッグ＆ドロップを確実にするためのスタイル --- */
 
-/* --- 修正：ドロワーの検索結果エリア自体にしっかりドロップ判定を持たせる --- */
-#drawer-search-results {
-  position: relative;
-  pointer-events: auto !important; /* グリッド自体は確実にイベントを受け付けるようにする！ */
+/* --- ドロワー内の文明ボタン --- */
+.drawer-civ-btn {
+  background-color: #94a3b8;
+  border: none;
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 75px;
+  height: 55px;
+  transition: background-color 0.2s;
 }
 
-/* 子要素の細かい要素が邪魔をする場合は、必要に応じて個別にスルーさせるか、今回はポインター有効に戻すよ */
-#drawer-search-results * {
-  pointer-events: auto;
+.drawer-civ-btn:hover {
+  background-color: #64748b;
 }
+
+.drawer-civ-btn.active {
+  background-color: #334155;
+}
+
+.drawer-civ-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* --- 相場モード用の文明ボタン（market-civ-btn） --- */
+.market-civ-btn {
+  background-color: #94a3b8;
+  border: none;
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 75px;
+  height: 55px;
+  transition: background-color 0.2s;
+}
+
+.market-civ-btn:hover {
+  background-color: #64748b;
+}
+
+.market-civ-btn.active {
+  background-color: #334155;
+}
+
+.market-civ-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* ボディのマーケットモード時クラス */
+body.market-mode .app-header {
+  background-color: #1e293b; /* 相場モード時のヘッダー色 */
+}
+
 
 /* ただし、カード自体やボタンなどのインタラクティブな操作が必要な部分は個別に有効に戻すこともできるよ */
 #drawer-search-results .card-item,

@@ -305,6 +305,43 @@
 
 </main>
 
+  <!-- ========================== -->
+  <!-- ⑤ 相場画面ビュー（初期は非表示） -->
+  <!-- ========================== -->
+  <main class="main-container" id="market-view" style="display: none;">
+
+    <!-- 上昇ランキング（全カード対象・横スクロール） -->
+    <section class="ranking-section">
+      <div class="section-header">
+        <div class="header-left-group">
+          <img src="images/icon-trend-up.svg" alt="上昇" class="title-icon">
+          <h2 class="section-title">今日の上昇ランキング（全カード対象）</h2>
+        </div>
+        <div class="section-actions">
+          <span class="price-type-badge" id="market-up-price-type-label">買取価格</span>
+          <button class="refresh-btn" id="market-up-toggle-price-btn" title="価格タイプを切り替え">
+            <img src="images/icon-refresh.svg" alt="更新">
+          </button>
+        </div>
+      </div>
+      
+      <div class="horizontal-card-list" id="market-up-ranking-list"></div>
+    </section>
+
+    <!-- 下落ランキング（全カード対象・横スクロール） -->
+    <section class="ranking-section">
+      <div class="section-header">
+        <div class="header-left-group">
+          <img src="images/icon-trend-down.svg" alt="下落" class="title-icon">
+          <h2 class="section-title">今日の下落ランキング（全カード対象）</h2>
+        </div>
+      </div>
+      
+      <div class="horizontal-card-list" id="market-down-ranking-list"></div>
+    </section>
+
+  </main>
+
 <!-- ========================== -->
 <!-- ④ 下からスライドしてくる検索ドロワーパネル -->
 <!-- ========================== -->
@@ -340,58 +377,134 @@
 
   </div>
 
+  <!-- 文明ボタンと検索バーの統合バー -->
+  <div class="drawer-filter-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+    <div style="display: flex; gap: 8px; overflow-x: auto; align-items: center;">
+      <button class="drawer-civ-btn" data-civ="光"><img src="images/icon-civ-light.svg" alt="光"></button>
+      <button class="drawer-civ-btn" data-civ="水"><img src="images/icon-civ-water.svg" alt="水"></button>
+      <button class="drawer-civ-btn" data-civ="火"><img src="images/icon-civ-fire.svg" alt="火"></button>
+      <button class="drawer-civ-btn" data-civ="自然"><img src="images/icon-civ-nature.svg" alt="自然"></button>
+      <button class="drawer-civ-btn" data-civ="闇"><img src="images/icon-civ-dark.svg" alt="闇"></button>
+      <button class="drawer-civ-btn" data-civ="ゼロ"><img src="images/icon-civ-zero.svg" alt="ゼロ"></button>
+      <button class="drawer-civ-btn" data-civ="多色"><img src="images/icon-civ-multi.svg" alt="多色"></button>
+      <button class="drawer-civ-btn" data-civ="単色"><img src="images/icon-civ-monochrome.svg" alt="単色"></button>
 
-  <!-- ★ ドロワー用文明フィルター -->
-  <div
-    id="drawer-civ-filter"
-    class="drawer-civ-filter"
-  >
+      <!-- 同名カードを1枚にまとめるチェックボックス -->
+      <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.95rem; color: #475569; cursor: pointer; white-space: nowrap; margin-left: 4px;">
+        <input type="checkbox" id="drawerUniqueModeCheckbox" style="cursor: pointer;"> 
+        同名カードを1枚にまとめる
+      </label>
 
-    <button class="drawer-civ-btn" data-civ="光">
-      <img src="images/icon-civ-light.svg" alt="光">
-    </button>
+      <!-- 並べ替えセレクトボックス -->
+      <div style="display: inline-flex; align-items: center; gap: 6px; margin-left: 8px;">
+        <span style="font-size: 0.85rem; font-weight: bold; color: #475569; white-space: nowrap;">並べ替え:</span>
+        <select id="drawer-sort-order-select">
+          <option value="release-new">発売日(新)</option>
+          <option value="release-old">発売日(古)</option>
+          <option value="cost-desc">コスト(高)</option>
+          <option value="cost-asc">コスト(低)</option>
+        </select>
+      </div>
+    </div>
 
-    <button class="drawer-civ-btn" data-civ="水">
-      <img src="images/icon-civ-water.svg" alt="水">
-    </button>
+    <!-- 右側のサブ検索エリア -->
+    <div class="sub-search-container" style="display: flex; gap: 8px; align-items: center; background: #fff; padding: 4px 12px; border-radius: 20px; border: 1px solid #cbd5e1; position: relative;">
+      <select id="drawer-sub-search-type" style="border: none; outline: none; background: transparent; font-size: 0.85rem; color: #475569; cursor: pointer;">
+        <option value="free" selected>フリーワード</option>
+        <option value="text">テキスト</option>
+      </select>
+      <span style="color: #cbd5e1;">|</span>
 
-    <button class="drawer-civ-btn" data-civ="火">
-      <img src="images/icon-civ-fire.svg" alt="火">
-    </button>
+      <!-- 入力欄 -->
+      <div style="display: flex; align-items: center;">
+        <input type="text" id="drawer-search-input" placeholder="検索ワードを入力..." style="border: none; outline: none; font-size: 0.85rem; width: 240px;" />
+      </div>
 
-    <button class="drawer-civ-btn" data-civ="自然">
-      <img src="images/icon-civ-nature.svg" alt="自然">
-    </button>
-
-    <button class="drawer-civ-btn" data-civ="闇">
-      <img src="images/icon-civ-dark.svg" alt="闇">
-    </button>
-
-    <button class="drawer-civ-btn" data-civ="ゼロ">
-      <img src="images/icon-civ-zero.svg" alt="ゼロ">
-    </button>
-
-    <button class="drawer-civ-btn" data-civ="多色">
-      <img src="images/icon-civ-multi.svg" alt="多色">
-    </button>
-
-    <button class="drawer-civ-btn" data-civ="単色">
-      <img src="images/icon-civ-monochrome.svg" alt="単色">
-    </button>
-
+      <!-- 詳細オプションを開く歯車ボタン -->
+      <button id="drawer-filter-toggle-btn" style="border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px;" title="詳細オプション">
+        <img src="images/filter-toggle-btn.svg" alt="フィルター" style="width: 24px; height: 24px; display: block;" />
+      </button>
+    </div>
   </div>
-
-
-  <!-- ★ 検索欄はここ -->
-  <input
-    type="text"
-    id="drawer-search-input"
-    placeholder="カード名・型番で検索..."
-  >
-
 
   <!-- カード一覧 -->
   <div id="drawer-search-results">
+  </div>
+
+  <!-- 詳細オプションメニュー（検索画面と同じ構造） -->
+  <div id="drawer-options-backdrop"></div>
+  <div id="drawer-options-popup">
+    <div style="font-weight: bold; margin-bottom: 16px; font-size: 1.1rem; color: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
+      <span>詳細オプション</span>
+      <button id="drawer-options-close-btn" style="border: none; background: transparent; cursor: pointer; font-size: 1.2rem; color: #64748b;">✕</button>
+    </div>
+
+    <!-- 条件をリセットボタン -->
+    <div style="margin-bottom: 16px;">
+      <button id="drawer-reset-filters-btn" 
+              style="width: 100%; padding: 10px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; font-weight: bold; color: #475569; cursor: pointer; transition: background 0.2s;"
+              onmouseover="this.style.background='#e2e8f0'; this.style.color='#1e293b';" 
+              onmouseout="this.style.background='#f1f5f9'; this.style.color='#475569';">
+        条件をリセット
+      </button>
+    </div>
+
+    <!-- パワー範囲指定 -->
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 0.85rem; color: #64748b; display: block; margin-bottom: 6px; font-weight: bold;">パワー</label>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="text" id="drawer-power-min-input" placeholder="指定なし" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; text-align: center; background: #f8fafc; outline: none;" />
+        <span style="font-size: 0.9rem; color: #666;">〜</span>
+        <input type="text" id="drawer-power-max-input" placeholder="指定なし" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; text-align: center; background: #f8fafc; outline: none;" />
+      </div>
+    </div>
+
+    <!-- コスト範囲指定 -->
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 0.85rem; color: #64748b; display: block; margin-bottom: 6px; font-weight: bold;">コスト</label>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="text" id="drawer-cost-min-input" placeholder="指定なし" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; text-align: center; background: #f8fafc; outline: none;" />
+        <span style="font-size: 0.9rem; color: #666;">〜</span>
+        <input type="text" id="drawer-cost-max-input" placeholder="指定なし" style="width: 100%; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; text-align: center; background: #f8fafc; outline: none;" />
+      </div>
+    </div>
+
+    <!-- 文明の条件 -->
+    <div style="margin-bottom: 16px;">
+      <label style="font-size: 0.85rem; color: #64748b; display: block; margin-bottom: 6px; font-weight: bold;">文明の条件</label>
+      <div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+        <span style="font-size: 0.9rem; color: #475569;">選んだ文明:</span>
+        <select id="drawer-civMatchMode" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; font-size: 0.9rem; outline: none;">
+          <option value="or">いずれか含む</option>
+          <option value="and">すべて含む</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- サブ検索条件エリア -->
+    <div style="margin-bottom: 16px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+      <label style="font-size: 0.85rem; color: #64748b; display: block; margin-bottom: 8px; font-weight: bold;">サブ検索条件の追加</label>
+      
+      <!-- 動的にサブ検索欄が追加されるコンテナ -->
+      <div id="drawer-dynamic-sub-search-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+        <!-- 初期状態のサブ検索欄 -->
+        <div class="sub-search-row" style="display: flex; gap: 6px; align-items: center;">
+          <select class="slide-sub-type" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #fff; outline: none;">
+            <option value="free">フリー</option>
+            <option value="text">テキスト</option>
+            <option value="race">種族</option>
+          </select>
+          <div style="position: relative; flex: 1; display: flex; align-items: center;">
+            <input type="text" class="slide-sub-input" placeholder="追加キーワード..." style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;" />
+            <button class="remove-sub-search-btn" style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;" title="削除">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: center;">
+        <button id="drawer-add-sub-search-btn" style="background: #cbd5e1; color: #fff; border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 1.2rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; padding-bottom: 2px; transition: background 0.2s;" title="条件を追加" onmouseover="this.style.background='#94a3b8';" onmouseout="this.style.background='#cbd5e1';">+</button>
+      </div>
+    </div>
   </div>
 
 </div>
