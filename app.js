@@ -1,7 +1,7 @@
 let allCards = [];
 let currentPriceType = '買取価格';
 let priceData = {};
-let displayedCount = 25; // 最初は25枚表示！
+let displayedCount = 40; // 最初は40枚表示！
 
 async function loadCards() {
   try {
@@ -27,6 +27,7 @@ async function loadCards() {
         _codeNorm: normalizeQuery(card.product_code || ""),
         _raceNorm: normalizeQuery(card.race || ""),
         _textNorm: normalizeQuery(card.card_text || card.text || ""),
+        _rubyNorm: normalizeQuery(card.ruby || card.card_ruby || ""),
         _civList: civList,
         _isMulti: civList.length > 1,
         _isMono: civList.length === 1
@@ -90,6 +91,21 @@ function switchView(viewName) {
     drawer.classList.remove('show');
   }
 
+  // ★コレクションモード以外なら「カードを追加」ドロワーも強制的に閉じる
+  if (viewName !== 'collection' && drawer) {
+    drawer.classList.remove('show');
+  }
+
+  // ★フローティングの「カードを追加」ボタンの表示制御
+  const floatingBtn = document.getElementById('floating-add-card-btn');
+  if (floatingBtn) {
+    if (viewName === 'collection') {
+      floatingBtn.style.display = 'flex';
+    } else {
+      floatingBtn.style.display = 'none';
+    }
+  }
+
   if (!homeView || !searchView) return;
 
   // いったんすべてのビューを非表示にする
@@ -144,7 +160,7 @@ function renderSearchResults(filterText = "", reset = false) {
   if (!container) return;
 
   if (reset) {
-    displayedCount = 25; 
+    displayedCount = 40; // リセット時は40枚表示に戻す
   }
 
   const rawKeywords = filterText.trim().split(/\s+/).filter(Boolean);
@@ -176,19 +192,21 @@ function renderSearchResults(filterText = "", reset = false) {
   const selectedCivs = Array.from(document.querySelectorAll('.civ-btn.active')).map(b => b.dataset.civ);
 
  const filtered = allCards.filter(card => {
-    // 1. メイン検索（カード名・型番・種族） - 事前正規化済みプロパティを利用して爆速化！
-    const nameNorm = card._nameNorm;
-    const codeNorm = card._codeNorm;
-    const raceNorm = card._raceNorm;
-    const textNorm = card._textNorm;
+     // 1. メイン検索（カード名・型番・種族・テキスト・ルビ） - 事前正規化済みプロパティを利用して爆速化！
+     const nameNorm = card._nameNorm;
+     const codeNorm = card._codeNorm;
+     const raceNorm = card._raceNorm;
+     const textNorm = card._textNorm;
+     const rubyNorm = card._rubyNorm;
 
-    // すべてのキーワードが、カード名・型番・種族・テキストのいずれかに含まれているか (AND検索)
-    const matchesMain = normalizedKeywords.length === 0 || normalizedKeywords.every(kw => {
-      return nameNorm.includes(kw) || 
-             codeNorm.includes(kw) || 
-             raceNorm.includes(kw) ||
-             textNorm.includes(kw);
-    });
+     // すべてのキーワードが、カード名・型番・種族・テキスト・ルビのいずれかに含まれているか (AND検索)
+     const matchesMain = normalizedKeywords.length === 0 || normalizedKeywords.every(kw => {
+       return nameNorm.includes(kw) || 
+              codeNorm.includes(kw) || 
+              raceNorm.includes(kw) ||
+              textNorm.includes(kw) ||
+              rubyNorm.includes(kw);
+     });
                           
     if (!matchesMain) return false;
 
@@ -265,16 +283,18 @@ function renderSearchResults(filterText = "", reset = false) {
       const cardNameNorm = card._nameNorm;
       const cardTextNorm = card._textNorm;
       const cardRaceNorm = normalizeQuery(card.race || "");
+      const cardRubyNorm = card._rubyNorm;
 
       if (subType === 'free') {
         const matchesAll = subQueryKeywords.every(kw => {
           return cardNameNorm.includes(kw) || 
                  cardTextNorm.includes(kw) || 
-                 cardRaceNorm.includes(kw);
+                 cardRaceNorm.includes(kw) ||
+                 cardRubyNorm.includes(kw);
         });
         if (!matchesAll) return false;
       } else if (subType === 'text') {
-        const matchesAll = subQueryKeywords.every(kw => cardTextNorm.includes(kw));
+        const matchesAll = subQueryKeywords.every(kw => cardTextNorm.includes(kw) || cardRubyNorm.includes(kw));
         if (!matchesAll) return false;
       } else if (subType === 'race') {
         const matchesAll = subQueryKeywords.every(kw => cardRaceNorm.includes(kw));
@@ -287,14 +307,15 @@ function renderSearchResults(filterText = "", reset = false) {
       const cardNameNorm = normalizeQuery(card.name || "");
       const cardTextNorm = normalizeQuery(card.text || "");
       const cardRaceNorm = normalizeQuery(card.race || "");
+      const cardRubyNorm = card._rubyNorm;
 
       if (cond.type === 'free') {
         const matchesAll = cond.keywords.every(kw => {
-          return cardNameNorm.includes(kw) || cardTextNorm.includes(kw) || cardRaceNorm.includes(kw);
+          return cardNameNorm.includes(kw) || cardTextNorm.includes(kw) || cardRaceNorm.includes(kw) || cardRubyNorm.includes(kw);
         });
         if (!matchesAll) return false;
       } else if (cond.type === 'text') {
-        const matchesAll = cond.keywords.every(kw => cardTextNorm.includes(kw));
+        const matchesAll = cond.keywords.every(kw => cardTextNorm.includes(kw) || cardRubyNorm.includes(kw));
         if (!matchesAll) return false;
       } else if (cond.type === 'race') {
         const matchesAll = cond.keywords.every(kw => cardRaceNorm.includes(kw));
@@ -396,9 +417,11 @@ const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
     return;
   }
 
-container.innerHTML = "";
+  container.innerHTML = "";
 
-displayCards.forEach(card => {
+  const limitedDisplayCards = displayCards.slice(0, displayedCount);
+
+  limitedDisplayCards.forEach(card => {
   const cardEl = document.createElement('div');
 
   // ★ コレクションカードをドラッグ可能にする
@@ -742,7 +765,7 @@ function setupNavigationAndSearch() {
     searchInput.addEventListener("input", (e) => {
       const query = e.target.value;
       switchView('search');
-      
+
       // デバウンス処理（200ms）を適用して連続入力をスムーズにする
       clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => {
@@ -1716,7 +1739,7 @@ document.addEventListener("DOMContentLoaded", () => {
     border: none;
     box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     cursor: pointer;
-    display: flex;
+    display: none; /* 初期状態は非表示（コレクション画面以外で表示されないようにする） */
     align-items: center;
     gap: 8px;
     font-size: 0.95rem;
@@ -1882,13 +1905,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const codeNorm = card._codeNorm;
       const raceNorm = card._raceNorm;
       const textNorm = card._textNorm;
+      const rubyNorm = card._rubyNorm;
 
-      // 1. メイン検索（複数キーワードAND：各キーワードが名前・型番・種族・テキストのいずれかに含まれる）
+      // 1. メイン検索（複数キーワードAND：各キーワードが名前・型番・種族・テキスト・ルビのいずれかに含まれる）
       const matchesMain = normalizedKeywords.length === 0 || normalizedKeywords.every(kw => {
         return nameNorm.includes(kw) || 
                codeNorm.includes(kw) || 
                raceNorm.includes(kw) ||
-               textNorm.includes(kw);
+               textNorm.includes(kw) ||
+               rubyNorm.includes(kw);
       });
       if (!matchesMain) return false;
 
@@ -1940,11 +1965,11 @@ document.addEventListener("DOMContentLoaded", () => {
       if (subQueryKeywords.length > 0) {
         if (subType === 'free') {
           const matchesAll = subQueryKeywords.every(kw => {
-            return nameNorm.includes(kw) || textNorm.includes(kw) || raceNorm.includes(kw);
+            return nameNorm.includes(kw) || textNorm.includes(kw) || raceNorm.includes(kw) || rubyNorm.includes(kw);
           });
           if (!matchesAll) return false;
         } else if (subType === 'text') {
-          const matchesAll = subQueryKeywords.every(kw => textNorm.includes(kw));
+          const matchesAll = subQueryKeywords.every(kw => textNorm.includes(kw) || rubyNorm.includes(kw));
           if (!matchesAll) return false;
         } else if (subType === 'race') {
           const matchesAll = subQueryKeywords.every(kw => raceNorm.includes(kw));
