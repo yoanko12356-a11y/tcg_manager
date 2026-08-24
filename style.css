@@ -699,7 +699,7 @@ body.search-mode .nav-buttons-group {
 
 /* ボディのマーケットモード時クラス */
 body.market-mode .app-header {
-  background-color: #1e293b; /* 相場モード時のヘッダー色 */
+  background-color: #666666; /* 他のモード（ホーム・検索・コレクション）のヘッダー色(#666666)に合わせる */
 }
 
 
