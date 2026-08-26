@@ -891,7 +891,8 @@ function setupNavigationAndSearch() {
     let searchDebounceTimer = null;
     searchInput.addEventListener("input", (e) => {
       const query = e.target.value;
-      switchView('search');
+      // 現在の画面が検索画面（search-view）のときだけ、あるいは必要に応じて自動切替しないようにする場合は switchView を削除・調整できます
+      // ここでは入力時に自動で検索画面に切り替わらないように switchView('search') をコメントアウト・削除します
 
       // デバウンス処理（200ms）を適用して連続入力をスムーズにする
       clearTimeout(searchDebounceTimer);
@@ -901,7 +902,7 @@ function setupNavigationAndSearch() {
     });
 
     searchInput.addEventListener("focus", () => {
-      switchView('search');
+      // フォーカス時の自動切り替えも不要であればここから switchView('search') を削除します
     });
   }
 
@@ -1377,7 +1378,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (removeBtn) {
       removeBtn.addEventListener("click", () => {
-        // 1個目しかない場合は削除させずに中身をクリアにするか、そのまま消すかの制御
         const container = document.getElementById("dynamic-sub-search-container");
         if (container && container.querySelectorAll(".sub-search-row").length > 1) {
           row.remove();
@@ -1391,8 +1391,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 1. まず、最初からHTMLにある1個目のサブ検索行にイベントをバインド！[cite: 7]
-  document.querySelectorAll(".sub-search-row").forEach(row => {
+  // 1. 検索画面側のサブ検索行だけにイベントをバインド
+  //    ※コレクションのドロワー内にも .sub-search-row が存在するため、
+  //      全体を取得するとドロワーにも検索画面用イベントが登録されてしまう。
+  document.querySelectorAll("#dynamic-sub-search-container .sub-search-row").forEach(row => {
     bindSubSearchRowEvents(row);
   });
 
@@ -1952,7 +1954,15 @@ document.addEventListener("DOMContentLoaded", () => {
     drawerSortSelect.addEventListener('change', renderDrawerSearchResults);
   }
 
-  // ドロワー用詳細オプションの開閉・リセット・入力変更イベント
+  // ドロワー内のパワー・コスト・詳細入力変更時のイベント登録
+  ['drawer-power-min-input', 'drawer-power-max-input', 'drawer-cost-min-input', 'drawer-cost-max-input'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("input", () => {
+        renderDrawerSearchResults();
+      });
+    }
+  });
   const drawerFilterBtn = document.getElementById('drawer-filter-toggle-btn');
   const drawerOptionsPopup = document.getElementById('drawer-options-popup');
   const drawerOptionsCloseBtn = document.getElementById('drawer-options-close-btn');
@@ -1984,24 +1994,113 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // ドロワー内の詳細オプション入力欄・条件変更の監視
-  ['drawer-sub-search-input', 'drawer-power-min-input', 'drawer-power-max-input', 'drawer-cost-min-input', 'drawer-cost-max-input', 'drawer-sub-search-type', 'drawer-civMatchMode'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener("input", renderDrawerSearchResults);
-      el.addEventListener("change", renderDrawerSearchResults);
-    }
-  });
+  // --- ★ドロワー内のサブ検索行に対するイベント設定・共通化関数 ---
+  function bindDrawerSubSearchRowEvents(row) {
+    const inputEl = row.querySelector(".slide-sub-input");
+    const typeSelect = row.querySelector(".slide-sub-type");
+    const removeBtn = row.querySelector(".remove-sub-search-btn");
 
-  const drawerResetFiltersBtn = document.getElementById("drawer-reset-filters-btn");
+    if (inputEl) {
+      inputEl.addEventListener("input", () => {
+        renderDrawerSearchResults();
+      });
+    }
+
+    if (typeSelect) {
+      typeSelect.addEventListener("change", () => {
+        renderDrawerSearchResults();
+      });
+    }
+
+    if (removeBtn) {
+      removeBtn.addEventListener("click", () => {
+        const container = document.getElementById("drawer-dynamic-sub-search-container");
+        if (container && container.querySelectorAll(".sub-search-row").length > 1) {
+          row.remove();
+        } else {
+          if (inputEl) inputEl.value = "";
+        }
+        renderDrawerSearchResults();
+      });
+    }
+  }
+
+  // 1. ドロワー内の既存のサブ検索行にイベントをバインド
+  const drawerDynamicContainer = document.getElementById("drawer-dynamic-sub-search-container");
+  if (drawerDynamicContainer) {
+    drawerDynamicContainer.querySelectorAll(".sub-search-row").forEach(row => {
+      bindDrawerSubSearchRowEvents(row);
+    });
+  }
+
+  // 2. ドロワー内詳細メニューの「＋」ボタンでサブ検索行を増やす処理
+  const drawerAddSubBtn = document.getElementById("drawer-add-sub-search-btn");
+  if (drawerAddSubBtn && drawerDynamicContainer) {
+    drawerAddSubBtn.addEventListener("click", () => {
+      const newRow = document.createElement("div");
+      newRow.className = "sub-search-row";
+      newRow.style.cssText = "display: flex; gap: 6px; align-items: center; margin-top: 6px;";
+      newRow.innerHTML = `
+        <select class="slide-sub-type" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #fff; outline: none;">
+          <option value="free">フリー</option>
+          <option value="text">テキスト</option>
+          <option value="race">種族</option>
+        </select>
+        <div style="position: relative; flex: 1; display: flex; align-items: center;">
+          <input type="text" class="slide-sub-input" placeholder="追加キーワード..." style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;" />
+          <button type="button" class="remove-sub-search-btn" style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;" title="削除">✕</button>
+        </div>
+      `;
+      bindDrawerSubSearchRowEvents(newRow);
+      drawerDynamicContainer.appendChild(newRow);
+    });
+  }
+
+ const drawerResetFiltersBtn = document.getElementById("drawer-reset-filters-btn");
   if (drawerResetFiltersBtn) {
     drawerResetFiltersBtn.addEventListener("click", () => {
+      // メイン検索欄をリセット
       if (drawerSearchInput) drawerSearchInput.value = "";
-      ['drawer-power-min-input', 'drawer-power-max-input', 'drawer-cost-min-input', 'drawer-cost-max-input', 'drawer-sub-search-input'].forEach(id => {
+
+      // パワー・コスト範囲をリセット
+      [
+        'drawer-power-min-input',
+        'drawer-power-max-input',
+        'drawer-cost-min-input',
+        'drawer-cost-max-input'
+      ].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = "";
       });
-      document.querySelectorAll('.drawer-civ-btn').forEach(b => b.classList.remove('active'));
+
+      // 詳細検索のサブ検索欄をすべてリセット
+      // ※ .slide-sub-input は複数追加されるため
+      //    document.getElementById() ではなく querySelectorAll() を使う
+      document.querySelectorAll(
+        '#drawer-dynamic-sub-search-container .slide-sub-input'
+      ).forEach(input => {
+        input.value = "";
+      });
+
+      // サブ検索の種類も「フリー」に戻す
+      document.querySelectorAll(
+        '#drawer-dynamic-sub-search-container .slide-sub-type'
+      ).forEach(select => {
+        select.value = "free";
+      });
+
+      // 文明フィルターをリセット
+      document.querySelectorAll('.drawer-civ-btn').forEach(b => {
+        b.classList.remove('active');
+      });
+
+      // 文明条件も「いずれか含む」に戻す
+      const drawerCivMatchMode = document.getElementById("drawer-civMatchMode");
+      if (drawerCivMatchMode) {
+        drawerCivMatchMode.value = "or";
+      }
+
+      // 検索結果を再描画
       renderDrawerSearchResults();
     });
   }
@@ -2048,11 +2147,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const normalizedKeywords = rawKeywords.map(kw => normalizeQuery(kw)).filter(Boolean);
     const drawerSelectedCivs = Array.from(document.querySelectorAll('.drawer-civ-btn.active')).map(btn => btn.dataset.civ);
 
-    // 詳細オプション条件の取得
-    const subType = document.getElementById("drawer-sub-search-type") ? document.getElementById("drawer-sub-search-type").value : "free";
-    const subQueryInput = document.getElementById("drawer-sub-search-input");
-    const subQueryRaw = subQueryInput ? subQueryInput.value.trim() : "";
-    const subQueryKeywords = subQueryRaw.split(/\s+/).map(kw => normalizeQuery(kw)).filter(Boolean);
+    // ドロワー用ダイナミックサブ検索条件の取得
+    const drawerSlideSubRows = document.querySelectorAll("#drawer-dynamic-sub-search-container .sub-search-row");
+    const drawerSlideConditions = Array.from(drawerSlideSubRows).map(row => {
+      const typeSelect = row.querySelector(".slide-sub-type");
+      const inputEl = row.querySelector(".slide-sub-input");
+      const rawVal = inputEl ? inputEl.value.trim() : "";
+      const keywords = rawVal.split(/\s+/).map(kw => normalizeQuery(kw)).filter(Boolean);
+      return {
+        type: typeSelect ? typeSelect.value : "free",
+        keywords: keywords
+      };
+    }).filter(cond => cond.keywords.length > 0);
     const powerMin = document.getElementById("drawer-power-min-input") ? parseInt(document.getElementById("drawer-power-min-input").value, 10) : NaN;
     const powerMax = document.getElementById("drawer-power-max-input") ? parseInt(document.getElementById("drawer-power-max-input").value, 10) : NaN;
     const costMin = document.getElementById("drawer-cost-min-input") ? parseInt(document.getElementById("drawer-cost-min-input").value, 10) : NaN;
@@ -2120,20 +2226,21 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!matchesCiv) return false;
       }
 
-      // 3. サブ検索
-      if (subQueryKeywords.length > 0) {
-        if (subType === 'free') {
-          const matchesAll = subQueryKeywords.every(kw => {
-            return nameNorm.includes(kw) || textNorm.includes(kw) || raceNorm.includes(kw) || rubyNorm.includes(kw);
-          });
-          if (!matchesAll) return false;
-        } else if (subType === 'text') {
-          const matchesAll = subQueryKeywords.every(kw => textNorm.includes(kw) || rubyNorm.includes(kw));
-          if (!matchesAll) return false;
-        } else if (subType === 'race') {
-          const matchesAll = subQueryKeywords.every(kw => raceNorm.includes(kw));
-          if (!matchesAll) return false;
-        }
+      // 3. サブ検索（複数の動的サブ検索条件に対応）
+      if (drawerSlideConditions.length > 0) {
+        const matchesAllSlide = drawerSlideConditions.every(cond => {
+          const type = cond.type;
+          const kws = cond.keywords;
+          if (type === 'free') {
+            return kws.every(kw => nameNorm.includes(kw) || textNorm.includes(kw) || raceNorm.includes(kw) || rubyNorm.includes(kw));
+          } else if (type === 'text') {
+            return kws.every(kw => textNorm.includes(kw) || rubyNorm.includes(kw));
+          } else if (type === 'race') {
+            return kws.every(kw => raceNorm.includes(kw));
+          }
+          return true;
+        });
+        if (!matchesAllSlide) return false;
       }
 
       // 4. パワー範囲指定

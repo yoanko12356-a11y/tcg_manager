@@ -3,6 +3,7 @@ import json
 import time
 import signal
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import re
 import urllib.parse
 import asyncio
@@ -255,7 +256,8 @@ async def main():
     with open(ALL_CARDS_PATH, "r", encoding="utf-8") as f:
         all_cards = json.load(f)
 
-    now = datetime.now()
+    # 日本時間（JST）を基準に価格取得日を決定
+    now = datetime.now(ZoneInfo("Asia/Tokyo"))
     date_str = now.strftime("%Y-%m-%d")
     year_month_str = now.strftime("%Y_%m")
     
