@@ -74,6 +74,131 @@ function normalizeQuery(str) {
     .trim();
 }
 
+function shiftIsoDate(iso, deltaDays) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
+  return dt.toISOString().slice(0, 10);
+}
+
+function enumerateIsoDates(startIso, endIso) {
+  const out = [];
+  if (!startIso || !endIso || startIso > endIso) return out;
+  let cur = startIso;
+  while (cur <= endIso) {
+    out.push(cur);
+    cur = shiftIsoDate(cur, 1);
+    if (out.length > 4000) break;
+  }
+  return out;
+}
+
+function getLowestPrice(dayData) {
+  if (!dayData) return null;
+  const arr = [];
+  const pushPrice = (val) => {
+    const p = Array.isArray(val) ? val[0] : val;
+    if (p !== "×" && typeof p === 'number' && p > 0) arr.push(p);
+  };
+  pushPrice(dayData.cardrush);
+  pushPrice(dayData.torecolo);
+  return arr.length > 0 ? Math.min(...arr) : null;
+}
+
+function getFilledPriceOn(history, dateStr, sortedDates) {
+  let found = -1;
+  let lo = 0;
+  let hi = sortedDates.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (sortedDates[mid] <= dateStr) {
+      found = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  if (found < 0) return null;
+  return getLowestPrice(history[sortedDates[found]]);
+}
+
+function getDayOverDay(cardName) {
+  const history = priceData && priceData[cardName];
+  if (!history) return null;
+  const dates = Object.keys(history).sort();
+  if (!dates.length) return null;
+  const latestDate = dates[dates.length - 1];
+  const latestPrice = getLowestPrice(history[latestDate]);
+  if (latestPrice == null) return null;
+  const prevDate = shiftIsoDate(latestDate, -1);
+  const prevPrice = getFilledPriceOn(history, prevDate, dates);
+  if (prevPrice == null) {
+    return { prevPrice: null, latestPrice, diff: null, percent: null, hasPrev: false };
+  }
+  const diff = latestPrice - prevPrice;
+  return { prevPrice, latestPrice, diff, percent: (diff / prevPrice) * 100, hasPrev: true };
+}
+
+function formatPriceChange(dod) {
+  if (!dod || dod.latestPrice == null) {
+    return { priceText: '¥—', changeText: '（—）', latestPriceNum: 0 };
+  }
+  if (!dod.hasPrev) {
+    return {
+      priceText: `¥${Number(dod.latestPrice).toLocaleString()}`,
+      changeText: '（—）',
+      latestPriceNum: dod.latestPrice
+    };
+  }
+  const percent = Math.round(dod.percent);
+  let changeText = '（±0%）';
+  if (dod.diff > 0) changeText = `（▲ +${percent}%）`;
+  else if (dod.diff < 0) changeText = `（▼ ${percent}%）`;
+  return {
+    priceText: `¥${Number(dod.prevPrice).toLocaleString()}➔¥${Number(dod.latestPrice).toLocaleString()}`,
+    changeText,
+    latestPriceNum: dod.latestPrice
+  };
+}
+
+function attachCompetitionRanks(sortedItems) {
+  let i = 0;
+  while (i < sortedItems.length) {
+    const rounded = Math.round(sortedItems[i].diffPercent);
+    let j = i + 1;
+    while (j < sortedItems.length && Math.round(sortedItems[j].diffPercent) === rounded) {
+      j++;
+    }
+    const rank = i + 1;
+    for (let k = i; k < j; k++) {
+      sortedItems[k].rank = rank;
+    }
+    i = j;
+  }
+  return sortedItems;
+}
+
+function rankBadgeHtml(rank) {
+  if (rank == null) return '';
+  const badgeColors = ['#f59e0b', '#94a3b8', '#b45309'];
+  const bgColor = rank <= 3 ? badgeColors[rank - 1] : '#64748b';
+  return `
+      <div style="
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        background: ${bgColor};
+        color: #fff;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        font-weight: bold;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        z-index: 2;
+      ">${rank}位</div>
+    `;
+}
+
 // --- ここから書き換え ---
 function switchView(viewName) {
   const homeView = document.getElementById('home-view');
@@ -113,6 +238,10 @@ function switchView(viewName) {
   searchView.style.display = 'none';
   if (collectionView) collectionView.style.display = 'none';
   if (marketView) marketView.style.display = 'none';
+
+  document.querySelectorAll('.header-nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === viewName);
+  });
 
   // モードごとに表示とアイコン・classを切り替える
   if (viewName === 'search') {
@@ -614,18 +743,18 @@ function renderRankings(filterText = "") {
 
   // 価格データがあるものだけに絞り込む（あるいは全体でソート）
   const validCards = cardsWithDiff.filter(item => item.hasPriceData);
+  const noPriceCards = cardsWithDiff.filter(item => !item.hasPriceData).map(item => item.card);
 
-  // 3. 値上がりランキング用（変動率が高い順）
+  // 3. 値上がりランキング用（変動率が高い順、価格データなしも後ろに含める）
   const upSorted = [...validCards].sort((a, b) => b.diffPercent - a.diffPercent);
-  const upCards = upSorted.slice(0, 15).map(item => item.card);
+  const upCards = [...upSorted.map(item => item.card), ...noPriceCards].slice(0, 15);
 
-  // 4. 値下がりランキング用（変動率が低い順）
+  // 4. 値下がりランキング用（変動率が低い順、価格データなしも後ろに含める）
   const downSorted = [...validCards].sort((a, b) => a.diffPercent - b.diffPercent);
-  const downCards = downSorted.slice(0, 15).map(item => item.card);
+  const downCards = [...downSorted.map(item => item.card), ...noPriceCards].slice(0, 15);
 
-  // もし価格データ付きのカードが少なければ、通常のカードでフォールバック
   const finalUpCards = upCards.length > 0 ? upCards : filtered.slice(0, 15);
-  const finalDownCards = downCards.length > 0 ? downCards : filtered.slice(15, 30);
+  const finalDownCards = downCards.length > 0 ? downCards : filtered.slice(0, 15);
 
   renderCards(finalUpCards, 'up-ranking-list', 'up');
   renderCards(finalDownCards, 'down-ranking-list', 'down');

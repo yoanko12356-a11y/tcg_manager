@@ -2,8 +2,13 @@ name: Auto Update Monthly Prices
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    # 深夜1:00 (JST) スタートで4時間おきに実行 (UTC 16:00, 20:00, 0:00, 4:00, 8:00, 12:00)
+    - cron: '0 16,20,0,4,8,12 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: price-update
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -11,6 +16,7 @@ permissions:
 jobs:
   update-prices:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
     steps:
       - name: リポジトリのコードをクラウドに呼び出す
         uses: actions/checkout@v4
@@ -24,12 +30,17 @@ jobs:
         run: pip install aiohttp beautifulsoup4 requests
 
       - name: 価格更新スクリプトの実行
+        env:
+          MAX_RUNTIME_MINUTES: '200'
         run: python update_prices.py
 
       - name: 変更された月別JSONをGitHubに自動保存（コミット）する
+        if: always()
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.io"
+          git fetch origin main || git fetch origin
+          git pull --rebase origin main || git pull --rebase origin HEAD || true
           git add data/prices_*.json
-          git commit -m "Auto-update monthly price data: $(date +'%Y-%m-%d')" || exit 0
-          git push
+          git commit -m "Auto-update monthly price data: $(date +'%Y-%m-%d %H:%M')" || exit 0
+          git push origin HEAD:main || git push

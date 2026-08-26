@@ -70,7 +70,7 @@ body {
   gap: 12px;
 }
 
-/* ヘッダー内のナビボタン（検索画面用） */
+/* ヘッダー内のナビボタン（ホーム以外のモード用） */
 .header-nav-btn {
   background: none;
   border: none;
@@ -127,7 +127,7 @@ body {
   padding: 16px 32px 24px 32px;
 }
 
-body.search-mode .home-nav-bar {
+body:not(.home-mode) .home-nav-bar {
   display: none;
 }
 
@@ -154,7 +154,7 @@ body.search-mode .home-nav-bar {
   margin-top: 6px;
 }
 
-body.search-mode .nav-buttons-group {
+body:not(.home-mode) .nav-buttons-group {
   display: flex;
 }
 
@@ -700,6 +700,10 @@ body.search-mode .nav-buttons-group {
 /* ボディのマーケットモード時クラス */
 body.market-mode .app-header {
   background-color: #666666; /* 他のモード（ホーム・検索・コレクション）のヘッダー色(#666666)に合わせる */
+}
+
+#market-view {
+  padding-top: 18px;
 }
 
 
