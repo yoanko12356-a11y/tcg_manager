@@ -566,22 +566,20 @@ const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
     const productCode = card.product_code || '26EX2 70/89';
 
     const cardName = card.name;
-    let todayStr = "2026-08-22";
     let lowestPrice = null;
     
-    if (priceData && priceData[cardName] && priceData[cardName][todayStr]) {
-      const cardPrices = priceData[cardName][todayStr];
-      const pricesArr = [];
-      if (cardPrices.cardrush && Array.isArray(cardPrices.cardrush)) {
-        const p = cardPrices.cardrush[0];
-        if (p !== "×" && typeof p === 'number' && p > 0) pricesArr.push(p);
-      }
-      if (cardPrices.torecolo && Array.isArray(cardPrices.torecolo)) {
-        const p = cardPrices.torecolo[0];
-        if (p !== "×" && typeof p === 'number' && p > 0) pricesArr.push(p);
-      }
-      if (pricesArr.length > 0) {
-        lowestPrice = Math.min(...pricesArr);
+    if (priceData && priceData[cardName]) {
+      const dates = Object.keys(priceData[cardName]).sort();
+      if (dates.length > 0) {
+        const candidateKey = dates[dates.length - 1];
+        const todayIso = "2026-08-26";
+        const d1 = new Date(candidateKey);
+        const d2 = new Date(todayIso);
+        const diffDays = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays <= 2) {
+          lowestPrice = getLowestPrice(priceData[cardName][candidateKey]);
+        }
       }
     }
 
@@ -987,30 +985,62 @@ function openCardModal(cardData) {
   const priceHistory = priceData && priceData[cardName] ? priceData[cardName] : {};
   const allDates = Object.keys(priceHistory).sort();
   
-  // 全データの平均価格と販売数を計算
-  let totalSum = 0;
-  let validCount = 0;
-  
-  allDates.forEach(d => {
-    const dayPrices = priceHistory[d];
-    if (dayPrices) {
-      if (dayPrices.cardrush && Array.isArray(dayPrices.cardrush) && typeof dayPrices.cardrush[0] === 'number') {
-        totalSum += dayPrices.cardrush[0];
-        validCount++;
-      }
-      if (dayPrices.torecolo && Array.isArray(dayPrices.torecolo) && typeof dayPrices.torecolo[0] === 'number') {
-        totalSum += dayPrices.torecolo[0];
-        validCount++;
+  // === 最新日のみの平均価格と販売数を計算（ただし、最新日が3日以上前なら非表示・「—」にする） ===
+  let latestDayPrices = null;
+  let latestDayKey = null;
+  if (priceData && priceData[cardName]) {
+    const dates = Object.keys(priceData[cardName]).sort();
+    if (dates.length > 0) {
+      const candidateKey = dates[dates.length - 1];
+      
+      // 日付の差分（日数）を計算する
+      const todayIso = "2026-08-26"; // または環境の最新日基準（ここでは2026-08-26を想定、またはdate比較）
+      const d1 = new Date(candidateKey);
+      const d2 = new Date(todayIso);
+      const diffTime = d2 - d1;
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      // 3日前より古い（diffDays > 2）場合は最新データなしとみなす
+      if (diffDays <= 2) {
+        latestDayKey = candidateKey;
+        if (priceData[cardName][latestDayKey]) {
+          latestDayPrices = priceData[cardName][latestDayKey];
+        }
       }
     }
-  });
+  }
 
-  const overallAvg = validCount > 0 ? Math.round(totalSum / validCount) : null;
+  // 代わりに実際に最新日に存在するショップの価格から平均を計算
+  let latestSum = 0;
+  let latestValidCount = 0;
+  if (latestDayPrices) {
+    if (latestDayPrices.cardrush && Array.isArray(latestDayPrices.cardrush) && latestDayPrices.cardrush[0] !== "×" && typeof latestDayPrices.cardrush[0] === 'number' && latestDayPrices.cardrush[0] > 0) {
+      latestSum += latestDayPrices.cardrush[0];
+      latestValidCount++;
+    }
+    if (latestDayPrices.torecolo && Array.isArray(latestDayPrices.torecolo) && latestDayPrices.torecolo[0] !== "×" && typeof latestDayPrices.torecolo[0] === 'number' && latestDayPrices.torecolo[0] > 0) {
+      latestSum += latestDayPrices.torecolo[0];
+      latestValidCount++;
+    }
+  }
+
+  const overallAvg = latestValidCount > 0 ? Math.round(latestSum / latestValidCount) : null;
   const avgPriceEl = document.getElementById('modal-avg-price');
   const salesCountEl = document.getElementById('modal-sales-count');
   
-  if (avgPriceEl) avgPriceEl.textContent = overallAvg !== null ? `¥${overallAvg.toLocaleString()}` : '¥—';
-  if (salesCountEl) salesCountEl.textContent = validCount > 0 ? validCount : '—';
+  if (avgPriceEl) avgPriceEl.textContent = overallAvg !== null ? `¥${overallAvg.toLocaleString()}` : '—';
+  if (salesCountEl) {
+    let totalStock = 0;
+    if (latestDayPrices) {
+      if (latestDayPrices.cardrush && Array.isArray(latestDayPrices.cardrush) && typeof latestDayPrices.cardrush[1] === 'number') {
+        totalStock += latestDayPrices.cardrush[1];
+      }
+      if (latestDayPrices.torecolo && Array.isArray(latestDayPrices.torecolo) && typeof latestDayPrices.torecolo[1] === 'number') {
+        totalStock += latestDayPrices.torecolo[1];
+      }
+    }
+    salesCountEl.textContent = latestValidCount > 0 ? totalStock : '—';
+  }
 
   // チャート用データを構築する関数
   function getChartData(datesToUse) {
@@ -1787,20 +1817,20 @@ function renderCollectionCards() {
     const count = userCollection[card.name] || 1;
 
     // 最新価格の取得
-    let todayStr = "2026-08-22";
     let lowestPrice = null;
-    if (priceData && priceData[card.name] && priceData[card.name][todayStr]) {
-      const cardPrices = priceData[card.name][todayStr];
-      const pricesArr = [];
-      if (cardPrices.cardrush && Array.isArray(cardPrices.cardrush)) {
-        const p = cardPrices.cardrush[0];
-        if (p !== "×" && typeof p === 'number' && p > 0) pricesArr.push(p);
+    if (priceData && priceData[card.name]) {
+      const dates = Object.keys(priceData[card.name]).sort();
+      if (dates.length > 0) {
+        const candidateKey = dates[dates.length - 1];
+        const todayIso = "2026-08-26";
+        const d1 = new Date(candidateKey);
+        const d2 = new Date(todayIso);
+        const diffDays = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays <= 2) {
+          lowestPrice = getLowestPrice(priceData[card.name][candidateKey]);
+        }
       }
-      if (cardPrices.torecolo && Array.isArray(cardPrices.torecolo)) {
-        const p = cardPrices.torecolo[0];
-        if (p !== "×" && typeof p === 'number' && p > 0) pricesArr.push(p);
-      }
-      if (pricesArr.length > 0) lowestPrice = Math.min(...pricesArr);
     }
     const currentPriceText = lowestPrice !== null ? `¥${Number(lowestPrice).toLocaleString()}` : "¥—";
 
@@ -2388,6 +2418,20 @@ const drawerResults = document.getElementById('drawer-search-results');
   const colSortSelect = document.getElementById("collection-sort-select");
   if (colSortSelect) {
     colSortSelect.addEventListener("change", () => {
+      if (typeof renderCollectionCards === 'function') renderCollectionCards();
+    });
+  }
+
+  const colResetBtn = document.getElementById("collection-reset-btn");
+  if (colResetBtn) {
+    colResetBtn.addEventListener("click", () => {
+      const colSearchInputEl = document.getElementById("collection-search-input");
+      if (colSearchInputEl) colSearchInputEl.value = "";
+
+      document.querySelectorAll('#collection-view .civ-btn').forEach(b => b.classList.remove('active'));
+
+      if (colSortSelect) colSortSelect.value = "release-new";
+
       if (typeof renderCollectionCards === 'function') renderCollectionCards();
     });
   }
