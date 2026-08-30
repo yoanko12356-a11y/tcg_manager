@@ -204,7 +204,8 @@ function switchView(viewName) {
   const homeView = document.getElementById('home-view');
   const searchView = document.getElementById('search-view');
   const collectionView = document.getElementById('collection-view');
-  const marketView = document.getElementById('market-view'); // ★追加：相場用のビュー
+  const favoriteView = document.getElementById('favorite-view');
+  const marketView = document.getElementById('market-view');
   
   // アイコンをIDで取得
   const favoriteIcon = document.getElementById('favorite-icon');
@@ -216,15 +217,15 @@ function switchView(viewName) {
     drawer.classList.remove('show');
   }
 
-  // ★コレクションモード以外なら「カードを追加」ドロワーも強制的に閉じる
-  if (viewName !== 'collection' && drawer) {
+  // ★コレクションまたはお気に入りモード以外なら「カードを追加」ドロワーも強制的に閉じる
+  if (viewName !== 'collection' && viewName !== 'favorite' && drawer) {
     drawer.classList.remove('show');
   }
 
-  // ★フローティングの「カードを追加」ボタンの表示制御
+  // ★フローティングの「カードを追加」ボタンの表示制御（コレクションまたはお気に入り画面で表示）
   const floatingBtn = document.getElementById('floating-add-card-btn');
   if (floatingBtn) {
-    if (viewName === 'collection') {
+    if (viewName === 'collection' || viewName === 'favorite') {
       floatingBtn.style.display = 'flex';
     } else {
       floatingBtn.style.display = 'none';
@@ -237,6 +238,7 @@ function switchView(viewName) {
   homeView.style.display = 'none';
   searchView.style.display = 'none';
   if (collectionView) collectionView.style.display = 'none';
+  if (favoriteView) favoriteView.style.display = 'none';
   if (marketView) marketView.style.display = 'none';
 
   document.querySelectorAll('.header-nav-btn').forEach(btn => {
@@ -246,10 +248,9 @@ function switchView(viewName) {
   // モードごとに表示とアイコン・classを切り替える
   if (viewName === 'search') {
     searchView.style.display = 'block';
-    document.body.classList.remove('home-mode', 'collection-mode', 'market-mode');
+    document.body.classList.remove('home-mode', 'collection-mode', 'favorite-mode', 'market-mode');
     document.body.classList.add('search-mode');
     
-    // 検索モード：active画像をセット
     if (favoriteIcon) favoriteIcon.src = 'images/nav-favorite-active.svg';
     if (marketIcon) marketIcon.src = 'images/nav-market-active.svg';
 
@@ -258,32 +259,164 @@ function switchView(viewName) {
       collectionView.style.display = 'block';
       renderCollectionCards();
     }
-    document.body.classList.remove('home-mode', 'search-mode', 'market-mode');
+    document.body.classList.remove('home-mode', 'search-mode', 'favorite-mode', 'market-mode');
     document.body.classList.add('collection-mode');
     
-  } else if (viewName === 'market') { // ★追加：相場モードの処理
+  } else if (viewName === 'favorite') {
+    if (favoriteView) {
+      favoriteView.style.display = 'block';
+      renderFavoriteCards();
+    }
+    document.body.classList.remove('home-mode', 'search-mode', 'collection-mode', 'market-mode');
+    document.body.classList.add('favorite-mode');
+    if (favoriteIcon) favoriteIcon.src = 'images/nav-favorite-active.svg';
+
+  } else if (viewName === 'market') {
     if (marketView) {
       marketView.style.display = 'block';
-      renderMarketRankings(); // 相場画面を開いたときに全カードの上昇・下落ランキングを描画！
+      renderMarketRankings();
     }
-    document.body.classList.remove('home-mode', 'search-mode', 'collection-mode');
+    document.body.classList.remove('home-mode', 'search-mode', 'collection-mode', 'favorite-mode');
     document.body.classList.add('market-mode');
     if (marketIcon) marketIcon.src = 'images/nav-market-active.svg';
 
   } else {
     // ホームモード
     homeView.style.display = 'block';
-    document.body.classList.remove('search-mode', 'collection-mode', 'market-mode');
+    document.body.classList.remove('search-mode', 'collection-mode', 'favorite-mode', 'market-mode');
     document.body.classList.add('home-mode');
     
-    // ホームモード：通常画像に戻す
     if (favoriteIcon) favoriteIcon.src = 'images/nav-favorite.svg';
     if (marketIcon) marketIcon.src = 'images/nav-market.svg';
   }
 }
+
 // --- ここまで ---
 
-  // --- 検索・フィルター・ランキング処理を統合したメイン関数 ---
+
+// ★★★★★ フリーワード検索用：能力単位で検索する関数 ★★★★★
+//
+// 1つの検索欄に
+// 「バトルゾーン タップする」
+// と入れた場合、
+//
+// 「バトルゾーン」と「タップする」が
+// 同じ「\n」で区切られた能力の中にある場合だけヒットさせる。
+//
+// 例:
+//
+// 能力①：バトルゾーンに出してもよい
+// 能力②：バトルゾーンにある相手のクリーチャーをすべてタップする
+//
+// → 「バトルゾーン タップする」なら能力②だけが一致。
+
+
+function matchesFreeWordInSameAbility(card, keywords) {
+
+  // 検索ワードが何もなければOK
+  if (!keywords || keywords.length === 0) {
+    return true;
+  }
+
+  // カードのテキストを取得
+  const rawText = card.text || "";
+
+  // \n で能力ごとに分割する
+  //
+  // 例えば、
+  //
+  // A\nB\nC
+  //
+  // ↓
+  //
+  // [
+  //   "A",
+  //   "B",
+  //   "C"
+  // ]
+  //
+  const abilities = rawText
+    .split(/\r?\n/)
+    .map(text => normalizeQuery(text))
+    .filter(Boolean);
+
+  // 「スター進化」など、1行しかないカードも
+  // abilities が1個になるので普通に検索できる。
+  //
+  // どれか1つの能力について、
+  // 全検索ワードが入っているか確認する。
+  return abilities.some(ability => {
+    return keywords.every(keyword => {
+      return ability.includes(keyword);
+    });
+  });
+}
+
+
+// ★★★★★ フリーワード検索用関数ここまで ★★★★★
+
+function matchesUnifiedSearch(card, keywords) {
+
+  if (!keywords || keywords.length === 0) {
+    return true;
+  }
+
+  const nameNorm = card._nameNorm || normalizeQuery(card.name || "");
+  const codeNorm = card._codeNorm || normalizeQuery(card.product_code || card.search_code || "");
+  const raceNorm = card._raceNorm || normalizeQuery(card.race || "");
+  const rubyNorm = card._rubyNorm || normalizeQuery(card.ruby || "");
+
+  // テキストを「\n＝能力の区切り」として分割
+  const abilities = String(card.text || "")
+    .split(/\r?\n/)
+    .map(text => normalizeQuery(text))
+    .filter(Boolean);
+
+  // 各ワードについて、
+  // 名前・型番・種族・ルビ・テキストのどこかに存在するか
+  const fieldMatch = keyword => {
+    return (
+      nameNorm.includes(keyword) ||
+      codeNorm.includes(keyword) ||
+      raceNorm.includes(keyword) ||
+      rubyNorm.includes(keyword)
+    );
+  };
+
+  // 1ワードだけならカード全体のどこにあってもOK
+  if (keywords.length === 1) {
+    const keyword = keywords[0];
+
+    return (
+      fieldMatch(keyword) ||
+      abilities.some(ability => ability.includes(keyword))
+    );
+  }
+
+  // 複数ワードの場合
+  //
+  // ① 全ワードが名前・型番・種族・ルビだけで成立する
+  //    → OK
+  //
+  // ② テキストに関係するワードは、
+  //    同じ能力の中に全部存在する必要がある
+  //
+  return abilities.some(ability => {
+
+    return keywords.every(keyword => {
+
+      return (
+        fieldMatch(keyword) ||
+        ability.includes(keyword)
+      );
+
+    });
+
+  }) || keywords.every(keyword => fieldMatch(keyword));
+}
+
+
+// --- 検索・フィルター・ランキング処理を統合したメイン関数 ---
 function renderSearchResults(filterText = "", reset = false) {
   const container = document.getElementById("search-results-grid");
   if (!container) return;
@@ -304,18 +437,33 @@ function renderSearchResults(filterText = "", reset = false) {
   const powerMin = document.getElementById("power-min-input") ? parseInt(document.getElementById("power-min-input").value, 10) : NaN;
   const powerMax = document.getElementById("power-max-input") ? parseInt(document.getElementById("power-max-input").value, 10) : NaN;
 
-// ★スライドメニュー内にあるサブ検索の行を、最初からある1個目も含めてぜんぶまとめて取得する！
-  const slideSubRows = document.querySelectorAll(".sub-search-row");
-  const slideConditions = Array.from(slideSubRows).map(row => {
-    const typeSelect = row.querySelector(".slide-sub-type");
-    const inputEl = row.querySelector(".slide-sub-input");
-    const rawVal = inputEl ? inputEl.value.trim() : "";
-    const keywords = rawVal.split(/\s+/).map(kw => normalizeQuery(kw)).filter(Boolean);
-    return {
-      type: typeSelect ? typeSelect.value : "free",
-      keywords: keywords
-    };
-  }).filter(cond => cond.keywords.length > 0);
+// ★スライドメニュー内にあるサブ検索欄を、
+// 最初からある1個目も含めて全部取得する！
+
+const slideSubRows =
+  document.querySelectorAll(".sub-search-row");
+
+const slideConditions =
+  Array.from(slideSubRows).map(row => {
+
+    // 検索入力欄を取得
+    const inputEl =
+      row.querySelector(".slide-sub-input");
+
+    // 入力された文字
+    const rawVal =
+      inputEl ? inputEl.value.trim() : "";
+    const keywords =
+      rawVal
+        .split(/\s+/)
+        .map(kw => normalizeQuery(kw))
+        .filter(Boolean);
+
+    return {type: "free",keywords: keywords};
+
+  }).filter(
+    cond => cond.keywords.length > 0
+  );
 
   // 選択中の文明ボタンを取得
   const selectedCivs = Array.from(document.querySelectorAll('.civ-btn.active')).map(b => b.dataset.civ);
@@ -329,15 +477,11 @@ function renderSearchResults(filterText = "", reset = false) {
      const rubyNorm = card._rubyNorm;
 
      // すべてのキーワードが、カード名・型番・種族・テキスト・ルビのいずれかに含まれているか (AND検索)
-     const matchesMain = normalizedKeywords.length === 0 || normalizedKeywords.every(kw => {
-       return nameNorm.includes(kw) || 
-              codeNorm.includes(kw) || 
-              raceNorm.includes(kw) ||
-              textNorm.includes(kw) ||
-              rubyNorm.includes(kw);
-     });
-                          
-    if (!matchesMain) return false;
+// 統合フリーワード検索
+const matchesMain =
+  matchesUnifiedSearch(card, normalizedKeywords);
+
+if (!matchesMain) return false;
 
 // 2. 文明フィルターの判定
     if (selectedCivs.length > 0) {
@@ -407,50 +551,34 @@ function renderSearchResults(filterText = "", reset = false) {
     }
 
 
-    // 3. サブ検索（フリーワード・テキスト・種族） - ヘッダー側の既存処理
-    if (subQueryKeywords.length > 0) {
-      const cardNameNorm = card._nameNorm;
-      const cardTextNorm = card._textNorm;
-      const cardRaceNorm = normalizeQuery(card.race || "");
-      const cardRubyNorm = card._rubyNorm;
+   // 3. サブ検索
+// メイン検索と同じ検索方法に統一
+if (subQueryKeywords.length > 0) {
 
-      if (subType === 'free') {
-        const matchesAll = subQueryKeywords.every(kw => {
-          return cardNameNorm.includes(kw) || 
-                 cardTextNorm.includes(kw) || 
-                 cardRaceNorm.includes(kw) ||
-                 cardRubyNorm.includes(kw);
-        });
-        if (!matchesAll) return false;
-      } else if (subType === 'text') {
-        const matchesAll = subQueryKeywords.every(kw => cardTextNorm.includes(kw) || cardRubyNorm.includes(kw));
-        if (!matchesAll) return false;
-      } else if (subType === 'race') {
-        const matchesAll = subQueryKeywords.every(kw => cardRaceNorm.includes(kw));
-        if (!matchesAll) return false;
-      }
-    }
+  const matchesSub =
+    matchesUnifiedSearch(card, subQueryKeywords);
 
-    // ★スライドメニュー内で「＋」から増やしたサブ検索の条件をぜんぶチェックする処理
-    for (const cond of slideConditions) {
-      const cardNameNorm = normalizeQuery(card.name || "");
-      const cardTextNorm = normalizeQuery(card.text || "");
-      const cardRaceNorm = normalizeQuery(card.race || "");
-      const cardRubyNorm = card._rubyNorm;
+  if (!matchesSub) return false;
+}
 
-      if (cond.type === 'free') {
-        const matchesAll = cond.keywords.every(kw => {
-          return cardNameNorm.includes(kw) || cardTextNorm.includes(kw) || cardRaceNorm.includes(kw) || cardRubyNorm.includes(kw);
-        });
-        if (!matchesAll) return false;
-      } else if (cond.type === 'text') {
-        const matchesAll = cond.keywords.every(kw => cardTextNorm.includes(kw) || cardRubyNorm.includes(kw));
-        if (!matchesAll) return false;
-      } else if (cond.type === 'race') {
-        const matchesAll = cond.keywords.every(kw => cardRaceNorm.includes(kw));
-        if (!matchesAll) return false;
-      }
-    }
+// ★「＋」で増やした検索欄
+// メイン検索・サブ検索と同じ検索ルールに統一
+for (const cond of slideConditions) {
+
+  // 検索欄が空なら無視
+  if (!cond.keywords || cond.keywords.length === 0) {
+    continue;
+  }
+
+  // この検索欄もメイン・サブと同じ検索方法
+  const matchesCondition =
+    matchesUnifiedSearch(card, cond.keywords);
+
+  // 条件を満たさなければ、このカードは除外
+  if (!matchesCondition) {
+    return false;
+  }
+}
 
     // ★サブ検索の種類に関係なく、詳細オプションのパワー範囲指定が入力されていればここで絞り込む！
     if (!isNaN(powerMin) || !isNaN(powerMax)) {
@@ -918,10 +1046,17 @@ function setupNavigationAndSearch() {
     });
   });
 
-  // ★ここに追加するよ！コレクションタブがクリックされたときの処理
+  // コレクションタブのイベントリスナー
   document.querySelectorAll('[data-tab="collection"]').forEach(btn => {
     btn.addEventListener("click", () => {
       switchView('collection');
+    });
+  });
+
+  // ほしいものタブのイベントリスナー
+  document.querySelectorAll('[data-tab="favorite"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      switchView('favorite');
     });
   });
 
@@ -1354,42 +1489,78 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- ★【重要】最初から存在する1個目のサブ検索欄に対するイベント設定・共通化関数 ---
-  function bindSubSearchRowEvents(row) {
-    const inputEl = row.querySelector(".slide-sub-input");
-    const typeSelect = row.querySelector(".slide-sub-type");
-    const removeBtn = row.querySelector(".remove-sub-search-btn");
+function bindSubSearchRowEvents(row) {
 
-    if (inputEl) {
-      inputEl.addEventListener("input", () => {
-        switchView('search');
-        const searchInput = document.getElementById("search-input");
-        renderSearchResults(searchInput ? searchInput.value : "", true);
-      });
-    }
+  const inputEl =
+    row.querySelector(".slide-sub-input");
 
-    if (typeSelect) {
-      typeSelect.addEventListener("change", () => {
-        switchView('search');
-        const searchInput = document.getElementById("search-input");
-        renderSearchResults(searchInput ? searchInput.value : "", true);
-      });
-    }
+  const removeBtn =
+    row.querySelector(".remove-sub-search-btn");
 
-    if (removeBtn) {
-      removeBtn.addEventListener("click", () => {
-        const container = document.getElementById("dynamic-sub-search-container");
-        if (container && container.querySelectorAll(".sub-search-row").length > 1) {
-          row.remove();
-        } else {
-          if (inputEl) inputEl.value = "";
-        }
-        switchView('search');
-        const searchInput = document.getElementById("search-input");
-        renderSearchResults(searchInput ? searchInput.value : "", true);
-      });
-    }
+
+  // 検索欄に文字を入力したとき
+  if (inputEl) {
+
+    inputEl.addEventListener("input", () => {
+
+      switchView('search');
+
+      const searchInput =
+        document.getElementById("search-input");
+
+      renderSearchResults(
+        searchInput ? searchInput.value : "",
+        true
+      );
+
+    });
+
   }
+
+
+  // ＋で追加した検索欄の「✕」ボタン
+  if (removeBtn) {
+
+    removeBtn.addEventListener("click", () => {
+
+      const container =
+        document.getElementById(
+          "dynamic-sub-search-container"
+        );
+
+      if (
+        container &&
+        container.querySelectorAll(".sub-search-row").length > 1
+      ) {
+
+        // 2個以上ある場合
+        // この検索欄そのものを削除
+        row.remove();
+
+      } else {
+
+        // 最後の1個は欄を残して
+        // 中身だけ空にする
+        if (inputEl) {
+          inputEl.value = "";
+        }
+
+      }
+
+      switchView('search');
+
+      const searchInput =
+        document.getElementById("search-input");
+
+      renderSearchResults(
+        searchInput ? searchInput.value : "",
+        true
+      );
+
+    });
+
+  }
+}
 
   // 1. 検索画面側のサブ検索行だけにイベントをバインド
   //    ※コレクションのドロワー内にも .sub-search-row が存在するため、
@@ -1407,17 +1578,23 @@ document.addEventListener("DOMContentLoaded", () => {
       const newRow = document.createElement("div");
       newRow.className = "sub-search-row";
       newRow.style.cssText = "display: flex; gap: 6px; align-items: center; margin-top: 6px;";
-      newRow.innerHTML = `
-        <select class="slide-sub-type" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #fff; outline: none;">
-          <option value="free">フリー</option>
-          <option value="text">テキスト</option>
-          <option value="race">種族</option>
-        </select>
-        <div style="position: relative; flex: 1; display: flex; align-items: center;">
-          <input type="text" class="slide-sub-input" placeholder="追加キーワード..." style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;" />
-          <button type="button" class="remove-sub-search-btn" style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;" title="削除">✕</button>
-        </div>
-      `;
+     newRow.innerHTML = `
+  <div style="position: relative; flex: 1; display: flex; align-items: center;">
+    <input
+      type="text"
+      class="slide-sub-input"
+      placeholder="追加キーワード..."
+      style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;"
+    />
+
+    <button
+      type="button"
+      class="remove-sub-search-btn"
+      style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;"
+      title="削除"
+    >✕</button>
+  </div>
+`;
 
       // 作成した新しい行にも同じイベントを適用！
       bindSubSearchRowEvents(newRow);
@@ -1468,6 +1645,201 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
+function saveFavorite() {
+  localStorage.setItem('tcg_favorite', JSON.stringify(userFavorite));
+}
+
+let userFavorite = JSON.parse(localStorage.getItem('tcg_favorite')) || {};
+
+function renderFavoriteCards() {
+  const container = document.getElementById("favorite-results-grid");
+  if (!container) return;
+
+  const favoriteCardNames = Object.keys(userFavorite).filter(name => userFavorite[name] > 0);
+  let displayCards = allCards.filter(card => favoriteCardNames.includes(card.name));
+
+  const searchInput = document.getElementById("favorite-search-input");
+  const keyword = searchInput ? normalizeQuery(searchInput.value) : "";
+
+  if (keyword) {
+    displayCards = displayCards.filter(card => {
+      const nameNorm = normalizeQuery(card.name || "");
+      const codeNorm = normalizeQuery(card.product_code || "");
+      const raceNorm = normalizeQuery(card.race || "");
+      const textNorm = normalizeQuery(card.text || "");
+      return nameNorm.includes(keyword) || codeNorm.includes(keyword) || raceNorm.includes(keyword) || textNorm.includes(keyword);
+    });
+  }
+
+  const selectedCivs = Array.from(document.querySelectorAll('#favorite-view .civ-btn.active')).map(b => b.dataset.civ);
+  if (selectedCivs.length > 0) {
+    displayCards = displayCards.filter(card => {
+      const rawCivs = card.civilizations || [];
+      let civs = [];
+      rawCivs.forEach(c => {
+        if (typeof c === 'string') civs.push(...c.split('/'));
+        else civs.push(c);
+      });
+      civs = [...new Set(civs)];
+
+      const isMulti = civs.length > 1;
+      const isMono = !isMulti && civs.length === 1;
+      const civButtons = selectedCivs.filter(c => !['単色', '多色'].includes(c));
+      const hasMultiSelected = selectedCivs.includes('多色');
+      const hasMonoSelected = selectedCivs.includes('単色');
+
+      let matchesCiv = true;
+      if (civButtons.length === 0) {
+        if (hasMultiSelected && !hasMonoSelected && !isMulti) matchesCiv = false;
+        if (hasMonoSelected && !hasMultiSelected && !isMono) matchesCiv = false;
+      } else {
+        const hasMatchedCiv = civs.some(c => civButtons.includes(c));
+        const hasExtraCivs = civs.some(c => !civButtons.includes(c));
+        if (civButtons.length === 1) {
+          if (!civs.includes(civButtons[0])) matchesCiv = false;
+        } else {
+          if (!hasMatchedCiv || hasExtraCivs) matchesCiv = false;
+        }
+      }
+      return matchesCiv;
+    });
+  }
+
+  const sortSelect = document.getElementById('favorite-sort-select');
+  const sortOrder = sortSelect ? sortSelect.value : 'release-new';
+
+  if (sortOrder === 'release-new') {
+    displayCards.sort((a, b) => (b.id !== undefined ? Number(b.id) : 0) - (a.id !== undefined ? Number(a.id) : 0));
+  } else if (sortOrder === 'release-old') {
+    displayCards.sort((a, b) => (a.id !== undefined ? Number(a.id) : 0) - (b.id !== undefined ? Number(b.id) : 0));
+  } else if (sortOrder === 'cost-desc') {
+    displayCards.sort((a, b) => (parseInt(b.cost, 10) || -1) - (parseInt(a.cost, 10) || -1));
+  } else if (sortOrder === 'cost-asc') {
+    displayCards.sort((a, b) => (parseInt(a.cost, 10) || 999) - (parseInt(b.cost, 10) || 999));
+  }
+
+  if (displayCards.length === 0) {
+    container.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">条件に一致するほしいものリストのカードがありません...</p>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  displayCards.forEach(card => {
+    const cardEl = document.createElement('div');
+    cardEl.className = 'card-item draggable-card';
+    cardEl.setAttribute('draggable', 'true');
+    cardEl.dataset.cardName = card.name;
+    cardEl.style.position = 'relative';
+    
+    const imageUrl = card.image_url || card.image || card.img || '';
+    const productCode = card.product_code || '';
+    let displayName = card.name || 'カード名';
+    let displayCode = productCode;
+    
+    const match = card.name ? card.name.match(/^(.*?)\((.*?)\)$/) : null;
+    if (match) {
+      displayName = match[1].trim();
+      displayCode = match[2].trim();
+    }
+
+    const count = userFavorite[card.name] || 1;
+
+    let lowestPrice = null;
+    if (priceData && priceData[card.name]) {
+      const dates = Object.keys(priceData[card.name]).sort();
+      if (dates.length > 0) {
+        const candidateKey = dates[dates.length - 1];
+        const todayIso = "2026-08-26";
+        const d1 = new Date(candidateKey);
+        const d2 = new Date(todayIso);
+        const diffDays = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 2) {
+          const dayData = priceData[card.name][candidateKey];
+          const arr = [];
+          if (dayData.cardrush && Array.isArray(dayData.cardrush)) {
+            const p = dayData.cardrush[0];
+            if (p !== "×" && typeof p === 'number' && p > 0) arr.push(p);
+          }
+          if (dayData.torecolo && Array.isArray(dayData.torecolo)) {
+            const p = dayData.torecolo[0];
+            if (p !== "×" && typeof p === 'number' && p > 0) arr.push(p);
+          }
+          if (arr.length > 0) lowestPrice = Math.min(...arr);
+        }
+      }
+    }
+
+    const priceText = lowestPrice !== null ? `¥${lowestPrice.toLocaleString()}` : "¥—";
+
+ cardEl.innerHTML = `
+  <div style="
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ff4757;
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: bold;
+    border-radius: 50%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    z-index: 2;
+  ">×${count}</div>
+
+  <div class="card-image-wrapper">
+    <img src="${imageUrl}" alt="${displayName}" class="card-thumb" loading="lazy" />
+  </div>
+
+  <div class="card-content">
+    <h3 class="card-title">${displayName}</h3>
+    <p class="card-code">${displayCode}</p>
+    <div class="card-price-info">
+      <span class="price-val">${priceText}</span>
+    </div>
+  </div>
+`;
+
+    // ★★★★★ ほしいものリストからドラッグ開始 ★★★★★
+    cardEl.addEventListener('dragstart', (e) => {
+      e.stopPropagation();
+
+      const targetName = cardEl.dataset.cardName || card.name;
+
+      // 「ほしいものリストから来た」と記録
+      window.dragSourceArea = 'favorite';
+
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', targetName);
+      e.dataTransfer.setData('card/name', targetName);
+      e.dataTransfer.setData('card/code', displayCode);
+      e.dataTransfer.setData('source/area', 'favorite');
+
+      console.log(
+        'ほしいものリストからドラッグ開始:',
+        targetName,
+        ' / 現在の枚数:',
+        userFavorite[targetName]
+      );
+    });
+
+    cardEl.addEventListener('click', () => {
+      openCardModal({
+        name: card.name,
+        code: displayCode,
+        image: imageUrl,
+        price: priceText,
+        cardData: card
+      });
+    });
+
+    container.appendChild(cardEl);
+  });
+}
 
 function saveCollection() {
   localStorage.setItem('tcg_collection', JSON.stringify(userCollection));
@@ -2041,16 +2413,24 @@ document.addEventListener("DOMContentLoaded", () => {
       newRow.className = "sub-search-row";
       newRow.style.cssText = "display: flex; gap: 6px; align-items: center; margin-top: 6px;";
       newRow.innerHTML = `
-        <select class="slide-sub-type" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #fff; outline: none;">
-          <option value="free">フリー</option>
-          <option value="text">テキスト</option>
-          <option value="race">種族</option>
-        </select>
-        <div style="position: relative; flex: 1; display: flex; align-items: center;">
-          <input type="text" class="slide-sub-input" placeholder="追加キーワード..." style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;" />
-          <button type="button" class="remove-sub-search-btn" style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;" title="削除">✕</button>
-        </div>
-      `;
+      <div style="position: relative; flex: 1; display: flex; align-items: center;">
+
+        <input
+          type="text"
+          class="slide-sub-input"
+          placeholder="追加キーワード..."
+          style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;"
+        />
+
+        <button
+          type="button"
+          class="remove-sub-search-btn"
+          style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;"
+          title="削除"
+        >✕</button>
+
+      </div>
+    `;
       bindDrawerSubSearchRowEvents(newRow);
       drawerDynamicContainer.appendChild(newRow);
     });
@@ -2128,16 +2508,73 @@ document.addEventListener("DOMContentLoaded", () => {
         let cardName = e.dataTransfer.getData('card/name') || e.dataTransfer.getData('text/plain');
         const sourceArea = e.dataTransfer.getData('source/area');
         console.log("ドロワーにドロップされたよ - カード:", cardName, " / エリア:", sourceArea);
-        if (sourceArea === 'collection' && typeof userCollection !== 'undefined' && cardName) {
+           // ==========================================
+        // コレクション → ドロワー
+        // ★今までの処理は残す
+        // ==========================================
+        if (sourceArea === 'collection' &&
+            typeof userCollection !== 'undefined' &&
+            cardName) {
+
           if (userCollection[cardName] && userCollection[cardName] > 0) {
             userCollection[cardName] -= 1;
-            if (userCollection[cardName] <= 0) delete userCollection[cardName];
-          } else {
-            userCollection[cardName] = (userCollection[cardName] || 1) - 1;
-            if (userCollection[cardName] <= 0) delete userCollection[cardName];
+
+            if (userCollection[cardName] <= 0) {
+              delete userCollection[cardName];
+            }
           }
+
           saveCollection();
-          if (document.getElementById('collection-view').style.display !== 'none') renderCollectionCards();
+
+          const collectionView = document.getElementById('collection-view');
+
+          if (collectionView && collectionView.style.display !== 'none') {
+            renderCollectionCards();
+          }
+
+          renderDrawerSearchResults();
+        }
+
+        // ==========================================
+        // ほしいものリスト → ドロワー
+        // ★今回追加する処理
+        // ==========================================
+        else if (sourceArea === 'favorite' &&
+                 typeof userFavorite !== 'undefined' &&
+                 cardName) {
+
+          console.log(
+            '★★★ ほしいもの → ドロワー ★★★',
+            cardName,
+            ' / 移動前:',
+            userFavorite[cardName]
+          );
+
+          // 1枚減らす
+          if (userFavorite[cardName] && userFavorite[cardName] > 0) {
+
+            userFavorite[cardName] -= 1;
+
+            // 0枚になったらリストから削除
+            if (userFavorite[cardName] <= 0) {
+              delete userFavorite[cardName];
+            }
+
+            // 保存
+            saveFavorite();
+
+            // ほしいものリストを即更新
+            renderFavoriteCards();
+
+            console.log(
+              '★★★ ほしいもの更新完了 ★★★',
+              cardName,
+              ' / 残り:',
+              userFavorite[cardName] || 0
+            );
+          }
+
+          // ドロワー側も更新
           renderDrawerSearchResults();
         }
       });
@@ -2172,14 +2609,58 @@ document.addEventListener("DOMContentLoaded", () => {
       const textNorm = card._textNorm;
       const rubyNorm = card._rubyNorm;
 
-      // 1. メイン検索（複数キーワードAND：各キーワードが名前・型番・種族・テキスト・ルビのいずれかに含まれる）
-      const matchesMain = normalizedKeywords.length === 0 || normalizedKeywords.every(kw => {
-        return nameNorm.includes(kw) || 
-               codeNorm.includes(kw) || 
-               raceNorm.includes(kw) ||
-               textNorm.includes(kw) ||
-               rubyNorm.includes(kw);
-      });
+      // ★★★★★ メインのフリーワード検索 ★★★★★
+      //
+      // 検索欄が1つの場合、
+      // 複数ワードは「同じ能力」の中に
+      // 全部入っている場合だけヒットさせる。
+      //
+      // 例：
+      //
+      // 「バトルゾーン タップする」
+      //
+      // 能力①
+      // バトルゾーンに出してもよい
+      //
+      // 能力②
+      // バトルゾーンにある相手のクリーチャーをすべてタップする
+      //
+      // → 能力②があるのでヒット。
+
+
+      let matchesMain = true;
+
+      if (normalizedKeywords.length > 0) {
+
+        // まず、同じ能力の中に
+        // 全ワードがあるか確認
+        const matchesSameAbility =
+          matchesFreeWordInSameAbility(card, normalizedKeywords);
+
+        if (matchesSameAbility) {
+
+          matchesMain = true;
+
+        } else if (normalizedKeywords.length === 1) {
+
+          // 1ワードだけの場合は、
+          // 今まで通りカード名・型番・種族・ルビも検索対象にする
+
+          const keyword = normalizedKeywords[0];
+
+          matchesMain =
+            nameNorm.includes(keyword) ||
+            codeNorm.includes(keyword) ||
+            raceNorm.includes(keyword) ||
+            rubyNorm.includes(keyword);
+
+        } else {
+
+          // 複数ワードなのに同じ能力に存在しない
+          // → 不一致
+          matchesMain = false;
+        }
+      }
       if (!matchesMain) return false;
 
       // 2. 文明フィルターの判定
@@ -2337,6 +2818,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       cardEl.addEventListener('dragstart', (e) => {
         const targetName = cardEl.dataset.cardName || card.name;
+
+        // ★ ドラッグ元を確実に覚えておく
+        window.dragSourceArea = 'drawer';
+
         e.dataTransfer.setData('text/plain', targetName);
         e.dataTransfer.setData('card/name', targetName);
         e.dataTransfer.setData('card/code', displayCode);
@@ -2347,6 +2832,8 @@ document.addEventListener("DOMContentLoaded", () => {
         e.stopPropagation();
         const cardName = card.name;
         userCollection[cardName] = (userCollection[cardName] || 0) + 1;
+
+
         console.log("ドロワーからクリックでカードを追加:", cardName, " / 現在の数:", userCollection[cardName]);
         if (typeof saveCollection === 'function') saveCollection();
         if (document.getElementById('collection-view').style.display !== 'none') {
@@ -2383,23 +2870,26 @@ document.addEventListener("DOMContentLoaded", () => {
 // 2. ドロワー内のカードのドラッグ開始設定（イベント委譲で確実にするよ）
 const drawerResults = document.getElementById('drawer-search-results');
   if (drawerResults) {
-    drawerResults.addEventListener('dragstart', (e) => {
-      const cardItem = e.target.closest('.draggable-card');
-      if (!cardItem) return;
+  drawerResults.addEventListener('dragstart', (e) => {
+  const cardItem = e.target.closest('.draggable-card');
+  if (!cardItem) return;
 
-      // ★覚えさせておいた正式な card.name を最優先で取得するよ！
-      const cardName = cardItem.dataset.cardName || cardItem.querySelector('.card-title').textContent;
-      
-      const codeEl = cardItem.querySelector('.card-code');
-      const cardCode = codeEl ? codeEl.textContent : '';
+  const cardName = cardItem.dataset.cardName || cardItem.querySelector('.card-title').textContent;
 
-      dragStartY = e.clientY;
-      e.dataTransfer.setData('text/plain', cardName);
-      e.dataTransfer.setData('card/name', cardName);
-      e.dataTransfer.setData('card/code', cardCode);
-      e.dataTransfer.setData('source/area', 'drawer');
-      console.log("ドロワーからドラッグ開始:", cardName);
-    });
+  // ★★★ ドロワーからドラッグしたことを記録
+  window.dragSourceArea = 'drawer';
+
+  const codeEl = cardItem.querySelector('.card-code');
+  const cardCode = codeEl ? codeEl.textContent : '';
+
+  dragStartY = e.clientY;
+  e.dataTransfer.setData('text/plain', cardName);
+  e.dataTransfer.setData('card/name', cardName);
+  e.dataTransfer.setData('card/code', cardCode);
+  e.dataTransfer.setData('source/area', 'drawer');
+
+  console.log("ドロワーからドラッグ開始:", cardName);
+});
   }
 
   // コレクション内のカードをドラッグしたときの開始位置記録
@@ -2473,6 +2963,139 @@ const drawerResults = document.getElementById('drawer-search-results');
       }
     });
   }
+
+   
+// ★★★★★ ほしいものリストへのドラッグ＆ドロップ ★★★★★
+
+// 「カード一覧」ではなく「ほしいもの画面全体」をドロップ先にする
+const favoriteViewEl = document.getElementById('favorite-view');
+
+if (favoriteViewEl) {
+
+  // ------------------------------------------
+  // ドラッグ中
+  // ------------------------------------------
+  favoriteViewEl.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    favoriteViewEl.classList.add('drag-over');
+
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  });
+
+  // ------------------------------------------
+  // ドラッグが外れた
+  // ------------------------------------------
+  favoriteViewEl.addEventListener('dragleave', (e) => {
+
+    if (!favoriteViewEl.contains(e.relatedTarget)) {
+      favoriteViewEl.classList.remove('drag-over');
+    }
+  });
+
+  // ------------------------------------------
+  // ドロップ
+  // ------------------------------------------
+  favoriteViewEl.addEventListener('drop', (e) => {
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    favoriteViewEl.classList.remove('drag-over');
+
+    let cardName = '';
+    let sourceArea = '';
+
+    try {
+
+      cardName =
+        e.dataTransfer.getData('card/name') ||
+        e.dataTransfer.getData('text/plain');
+
+      sourceArea =
+        e.dataTransfer.getData('source/area') ||
+        window.dragSourceArea ||
+        '';
+
+    } catch (err) {
+
+      console.error(
+        'ほしいものリスト：ドラッグデータ取得エラー',
+        err
+      );
+    }
+
+    console.log(
+      '★★★ ほしいものリスト DROP ★★★',
+      'カード:',
+      cardName,
+      ' / 元:',
+      sourceArea
+    );
+
+    // カード名が取れなかったら終了
+    if (!cardName) {
+      console.log(
+        'ほしいものリスト：カード名を取得できませんでした'
+      );
+      return;
+    }
+
+    // ------------------------------------------
+    // ドロワー → ほしいものリスト
+    // ------------------------------------------
+    if (sourceArea === 'drawer') {
+
+      if (typeof userFavorite === 'undefined') {
+        console.error(
+          'userFavorite が存在しません'
+        );
+        return;
+      }
+
+      // 1枚追加
+      userFavorite[cardName] =
+        (Number(userFavorite[cardName]) || 0) + 1;
+
+      console.log(
+        '★★★ ほしいものリストに追加 ★★★',
+        cardName,
+        ' / 現在:',
+        userFavorite[cardName],
+        '枚'
+      );
+
+      // 保存
+      saveFavorite();
+
+      // すぐ画面を更新
+      renderFavoriteCards();
+
+      return;
+    }
+
+    // ------------------------------------------
+    // ほしいもの → ほしいもの
+    // ------------------------------------------
+    // 同じ場所へのドロップなので何もしない
+    if (sourceArea === 'favorite') {
+
+      console.log(
+        'ほしいものリスト内の移動なので何もしません'
+      );
+
+      return;
+    }
+  });
+}
+
+// ★★★★★ ほしいものリストへのドラッグ＆ドロップここまで ★★★★★
+
+
+  
 
 
 // ★検索結果を表示するグリッドなどでもドロップを確実に許可するよ！
