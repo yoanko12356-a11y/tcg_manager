@@ -801,13 +801,16 @@ function renderRankings(filterText = "") {
   const rawKeywords = filterText.trim().split(/\s+/).filter(Boolean);
   const normalizedKeywords = rawKeywords.map(kw => normalizeQuery(kw)).filter(Boolean);
 
-  // コレクションに入っているカード名（枚数が1枚以上）を抽出
-  const collectedCardNames = Object.keys(userCollection).filter(name => userCollection[name] > 0);
+  // コレクションに入っているカード名、またはほしいものリストに入っているカード名を抽出
+  const targetCardNames = Array.from(new Set([
+    ...Object.keys(userCollection).filter(name => userCollection[name] > 0),
+    ...Object.keys(userFavorite).filter(name => userFavorite[name] > 0)
+  ]));
 
-  // 1. まずは検索キーワードでフィルタリング ＆ コレクション内のカードのみに絞り込む
+  // 1. まずは検索キーワードでフィルタリング ＆ コレクション・ほしいものリスト内のカードのみに絞り込む
   const filtered = allCards.filter(card => {
-    // コレクションに含まれているかチェック
-    if (!collectedCardNames.includes(card.name)) {
+    // コレクションまたはほしいものリストに含まれているかチェック
+    if (!targetCardNames.includes(card.name)) {
       return false;
     }
 
