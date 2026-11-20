@@ -647,9 +647,9 @@
             <button id="deck-back" class="deck-icon-button" aria-label="デッキ一覧へ戻る">〈</button>
             <label class="deck-name-label"><span class="deck-sr-only">デッキ名</span><input id="deck-name" maxlength="100" placeholder="デッキ名" autocomplete="off"></label>
             <output id="deck-count" aria-live="polite">0/40枚</output>
+            <span class="deck-status-row"><span id="deck-state"></span><span id="deck-rule-alert" class="deck-rule-alert" hidden></span><span id="deck-save-state"></span></span>
             <label class="deck-sort-label">並び替え：<select id="deck-sort"><option value="cost-asc">コスト順・低→高</option><option value="cost-desc">コスト順・高→低</option><option value="manual">追加順</option></select></label>
           </div>
-          <div class="deck-status-row"><span id="deck-state"></span><span id="deck-save-state"></span></div>
           <p id="deck-rule-warning" class="deck-rule-note">40枚未満・超過でも下書き保存できます。殿堂・同名制限・カード固有ルールは未判定です。</p>
           <div id="deck-copies" class="deck-copies" aria-label="デッキのカード一覧"></div>
         </section>

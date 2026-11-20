@@ -139,7 +139,17 @@ body.deck-mode .header-right { margin-left: auto; }
 #deck-count { font-size: 17px; }
 .deck-sort-label { font-size: 16px; }
 .deck-sort-label select { max-width: 145px; font-weight: 700; }
-.deck-status-row, .deck-rule-note, .deck-search-meta, .deck-local-note { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Status sits inline in the toolbar so the card grid keeps its height. */
+.deck-status-row { display: flex; align-items: center; gap: 10px; min-width: 0; margin: 0; font-size: 13px; color: #64748b; white-space: nowrap; overflow: hidden; }
+.deck-status-row > span { flex-shrink: 0; }
+.deck-status-row > #deck-state { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#deck-save-state { margin-left: 0; }
+#deck-save-state.is-dirty { color: #c2410c; font-weight: 700; }
+.deck-rule-alert { color: #fff; background: #c43c47; border-radius: 4px; padding: 1px 6px; font-weight: 700; cursor: help; }
+.deck-search-meta { flex-shrink: 0; margin: -4px 4px 8px; font-size: 12px; }
+.deck-feedback { transition: opacity .4s; }
+.deck-feedback.is-faded { opacity: 0; }
+.deck-rule-note, .deck-local-note { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .deck-copies { flex: 1; min-height: 0; overflow-y: auto; grid-template-columns: repeat(8,minmax(0,1fr)); gap: 8px 14px; padding: 0 1px 2px; scrollbar-width: thin; }
 .deck-copy-open { cursor: grab !important; }
 .deck-copy-open:active, .deck-search-add:active { cursor: grabbing !important; }

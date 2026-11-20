@@ -30,11 +30,22 @@
     img.addEventListener('error', () => { img.removeAttribute('src'); img.classList.add('deck-image-missing'); }, { once: true });
     return img;
   }
+  let feedbackTimer;
   function feedback(message, error = false) {
-    $('deck-feedback').textContent = message;
-    $('deck-feedback').classList.toggle('is-error', error);
+    const node = $('deck-feedback');
+    node.textContent = message;
+    node.classList.toggle('is-error', error);
+    node.classList.remove('is-faded');
+    clearTimeout(feedbackTimer);
+    // Fade instead of clearing so the live-region text stays readable; errors stay longer.
+    if (message) feedbackTimer = setTimeout(() => node.classList.add('is-faded'), error ? 6000 : 2500);
   }
   function isDirty() { return draft && JSON.stringify(draft) !== savedSignature; }
+  function updateSaveState() {
+    const dirty = Boolean(isDirty());
+    $('deck-save-state').textContent = dirty ? '● 未保存' : '保存済み';
+    $('deck-save-state').classList.toggle('is-dirty', dirty);
+  }
   function confirmLeave() { return !isDirty() || window.confirm('未保存の変更があります。保存せずに移動しますか？'); }
   function closeDialog() { if ($('deck-card-dialog').open) $('deck-card-dialog').close(); selected = null; }
   function beforeNavigation() {
@@ -125,11 +136,14 @@
     $('deck-count').classList.toggle('is-over', state.excess > 0);
     $('deck-state').textContent = state.label;
     $('deck-state').classList.toggle('is-over', state.excess > 0);
-    $('deck-save-state').textContent = isDirty() ? '● 未保存' : '保存済み';
+    updateSaveState();
     const baseCounts = new Map();
     draft.cards.forEach(copy => { const name = C.title(draft.cardSnapshots[copy.cardKey]); baseCounts.set(name, (baseCounts.get(name) || 0) + 1); });
     const many = [...baseCounts].filter(([, n]) => n > 4);
     $('deck-rule-warning').textContent = (many.length ? '同名カードが5枚以上あります。' : '') + '40枚未満・超過でも下書き保存できます。殿堂・同名制限・カード固有ルールは未判定です。';
+    $('deck-rule-alert').hidden = !many.length;
+    $('deck-rule-alert').textContent = many.length ? '同名5枚以上' : '';
+    $('deck-rule-alert').title = many.map(([name, n]) => `${name}：${n}枚`).join('\n');
     const grid = $('deck-copies'); grid.replaceChildren();
     if (!draft.cards.length) grid.append(el('p', 'deck-empty', '右のカードをここにドラッグして追加'));
     for (const copy of C.orderedCopies(draft)) {
@@ -256,7 +270,7 @@
     $('deck-create').addEventListener('click', () => openEditor());
     $('deck-header-save').addEventListener('click', save);
     $('deck-back').addEventListener('click', () => { if (confirmLeave()) { closeDialog(); openList(); } });
-    $('deck-name').addEventListener('input', () => { draft.name = $('deck-name').value; $('deck-save-state').textContent = '● 未保存'; });
+    $('deck-name').addEventListener('input', () => { draft.name = $('deck-name').value; updateSaveState(); });
     $('deck-sort').addEventListener('change', () => { draft.sort = $('deck-sort').value; renderEditor(); });
     $('deck-options-toggle').addEventListener('click', () => { const open = $('deck-filter-options').hidden; $('deck-filter-options').hidden = !open; $('deck-options-toggle').setAttribute('aria-expanded', String(open)); });
     ['query','extra-query','cost-min','cost-max','power-min','power-max'].forEach(name => $('deck-'+name).addEventListener('input', () => { if (name === 'query') $('search-input').value = $('deck-query').value; requestSearch(); }));
