@@ -2,6 +2,71 @@ let allCards = [];
 let currentPriceType = '買取価格';
 let priceData = {};
 let displayedCount = 40; // 最初は40枚表示！
+const PRICE_DATA_BASE_URL = 'https://raw.githubusercontent.com/yoanko12356-a11y/tcg_manager/refs/heads/main/data';
+const PRICE_FILES_INDEX_URL = `${PRICE_DATA_BASE_URL}/price_files.json`;
+
+function getTodayIso() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
+function getPriceFileCandidates(monthsToTry = 12) {
+  const [year, month] = getTodayIso().split('-').map(Number);
+  return Array.from({ length: monthsToTry }, (_, offset) => {
+    const date = new Date(Date.UTC(year, month - 1 - offset, 1));
+    const fileMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
+    return `prices_${date.getUTCFullYear()}_${fileMonth}.json`;
+  });
+}
+
+function getFreshPriceDay(cardName, maxAgeDays = 2) {
+  const history = priceData?.[cardName];
+  if (!history) return null;
+  const dates = Object.keys(history).sort();
+  const latestDate = dates.at(-1);
+  if (!latestDate) return null;
+  const ageDays = Math.floor((Date.parse(`${getTodayIso()}T00:00:00Z`) - Date.parse(`${latestDate}T00:00:00Z`)) / 86400000);
+  return ageDays >= 0 && ageDays <= maxAgeDays ? latestDate : null;
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [value];
+}
+
+function buildCardFaces(card) {
+  // 新形式は面ごとの並列配列、旧形式は単一値として読み込む。
+  const civilizations = Array.isArray(card.civilizations) && card.civilizations.some(Array.isArray)
+    ? card.civilizations
+    : [card.civilizations || []];
+  const fields = ['card_type', 'cost', 'power', 'race', 'rarity', 'text'];
+  const faceCount = Math.max(
+    1,
+    civilizations.length,
+    ...fields.map(field => Array.isArray(card[field]) ? card[field].length : 1)
+  );
+
+  return Array.from({ length: faceCount }, (_, index) => ({
+    card_type: Array.isArray(card.card_type) ? card.card_type[index] : (index === 0 ? card.card_type : ''),
+    cost: Array.isArray(card.cost) ? card.cost[index] : (index === 0 ? card.cost : ''),
+    power: Array.isArray(card.power) ? card.power[index] : (index === 0 ? card.power : ''),
+    race: Array.isArray(card.race) ? card.race[index] : (index === 0 ? card.race : ''),
+    rarity: Array.isArray(card.rarity) ? card.rarity[index] : (index === 0 ? card.rarity : ''),
+    text: Array.isArray(card.text) ? card.text[index] : (index === 0 ? card.text : ''),
+    civilizations: asArray(civilizations[index] || []).filter(Boolean)
+  }));
+}
+
+function faceMatchesNumberRange(face, powerMin, powerMax, costMin, costMax) {
+  const inRange = (value, min, max) => {
+    const numeric = Number.parseInt(String(value ?? '').replace(/[^0-9]/g, ''), 10);
+    if (Number.isNaN(numeric)) return Number.isNaN(min) && Number.isNaN(max);
+    return (Number.isNaN(min) || numeric >= min) && (Number.isNaN(max) || numeric <= max);
+  };
+  return inRange(face.power, powerMin, powerMax) && inRange(face.cost, costMin, costMax);
+}
 
 async function loadCards() {
   try {
@@ -10,30 +75,25 @@ async function loadCards() {
     
     // ★事前に各カードに正規化済みプロパティ（インデックス）を付与して高速化する！
     allCards = rawCards.map(card => {
-      const civs = card.civilizations || [];
-      let civList = [];
-      civs.forEach(c => {
-        if (typeof c === 'string') {
-          civList.push(...c.split('/'));
-        } else {
-          civList.push(c);
-        }
-      });
+      const faces = buildCardFaces(card);
+      let civList = faces.flatMap(face => face.civilizations.flatMap(c => String(c).split('/')));
       civList = [...new Set(civList)];
 
       return {
         ...card,
         _nameNorm: normalizeQuery(card.name || ""),
         _codeNorm: normalizeQuery(card.product_code || ""),
-        _raceNorm: normalizeQuery(card.race || ""),
-        _textNorm: normalizeQuery(card.card_text || card.text || ""),
+        _raceNorm: normalizeQuery(faces.map(face => face.race)),
+        _textNorm: normalizeQuery(card.card_text || faces.map(face => face.text)),
         _rubyNorm: normalizeQuery(card.ruby || card.card_ruby || ""),
         _civList: civList,
         _isMulti: civList.length > 1,
-        _isMono: civList.length === 1
+        _isMono: civList.length === 1,
+        _faces: faces
       };
     });
     
+    document.dispatchEvent(new Event('tcg:cards-loaded'));
     renderRankings();
     renderSearchResults();
     if (typeof renderDrawerSearchResults === 'function') {
@@ -46,10 +106,30 @@ async function loadCards() {
 
 async function loadPrices() {
   try {
-    // GitHub Pagesやローカル環境に合わせてパスを調整してね
-    const response = await fetch('https://raw.githubusercontent.com/yoanko12356-a11y/tcg_manager/refs/heads/main/data/prices_2026_08.json');
-    priceData = await response.json();
-    console.log("価格データの読み込み成功！", priceData);
+    let fileNames = [];
+    const indexResponse = await fetch(PRICE_FILES_INDEX_URL, { cache: 'no-cache' });
+    if (indexResponse.ok) {
+      const index = await indexResponse.json();
+      fileNames = Array.isArray(index.files) ? index.files : [];
+    }
+    // インデックス配備前でも直近1年分のデータは表示できるようにする。
+    if (fileNames.length === 0) fileNames = getPriceFileCandidates();
+
+    const loadedMonths = await Promise.all(fileNames.map(async fileName => {
+      const response = await fetch(`${PRICE_DATA_BASE_URL}/${fileName}`, { cache: 'no-cache' });
+      return response.ok ? { fileName, data: await response.json() } : null;
+    }));
+    const availableMonths = loadedMonths.filter(Boolean).sort((a, b) => a.fileName.localeCompare(b.fileName));
+    if (availableMonths.length === 0) throw new Error('価格データファイルが見つかりません');
+
+    // 古い月から順に統合するため、同一日付があれば新しいファイル側を優先する。
+    priceData = {};
+    for (const { data } of availableMonths) {
+      for (const [cardName, history] of Object.entries(data)) {
+        priceData[cardName] = { ...(priceData[cardName] || {}), ...history };
+      }
+    }
+    console.log(`価格データの読み込み成功: ${availableMonths.map(month => month.fileName).join(', ')}`);
     
     // データが読み込めたら、ランキングや検索結果を再描画して最新価格を反映させる
     renderRankings();
@@ -64,6 +144,8 @@ async function loadPrices() {
 
 function normalizeQuery(str) {
   if (!str) return "";
+  if (Array.isArray(str)) str = str.flat(Infinity).join(' ');
+  str = String(str);
   return str.toLowerCase()
     // 1. カタカナをひらがなに統一
     .replace(/[\u30a1-\u30f6]/g, match => String.fromCharCode(match.charCodeAt(0) - 0x60))
@@ -180,27 +262,21 @@ function attachCompetitionRanks(sortedItems) {
 
 function rankBadgeHtml(rank) {
   if (rank == null) return '';
-  const badgeColors = ['#f59e0b', '#94a3b8', '#b45309'];
-  const bgColor = rank <= 3 ? badgeColors[rank - 1] : '#64748b';
+
+  const rankClass =
+    rank === 1 ? 'rank-1' :
+    rank === 2 ? 'rank-2' :
+    rank === 3 ? 'rank-3' :
+    'rank-other';
+
   return `
-      <div style="
-        position: absolute;
-        top: 6px;
-        left: 6px;
-        background: ${bgColor};
-        color: #fff;
-        padding: 2px 8px;
-        font-size: 0.75rem;
-        font-weight: bold;
-        border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        z-index: 2;
-      ">${rank}位</div>
-    `;
+    <div class="rank-badge ${rankClass}">${rank}位</div>
+  `;
 }
 
 // --- ここから書き換え ---
 function switchView(viewName) {
+  if (window.TCGDeckUI && !window.TCGDeckUI.beforeNavigation(viewName)) return;
   const homeView = document.getElementById('home-view');
   const searchView = document.getElementById('search-view');
   const collectionView = document.getElementById('collection-view');
@@ -224,39 +300,38 @@ function switchView(viewName) {
 
   // ★フローティングの「カードを追加」ボタンの表示制御（コレクションまたはお気に入り画面で表示）
   const floatingBtn = document.getElementById('floating-add-card-btn');
+
   if (floatingBtn) {
-    if (viewName === 'collection' || viewName === 'favorite') {
-      floatingBtn.style.display = 'flex';
-    } else {
-      floatingBtn.style.display = 'none';
-    }
+    floatingBtn.classList.toggle(
+      'show',
+      viewName === 'collection' || viewName === 'favorite'
+    );
   }
 
   if (!homeView || !searchView) return;
 
   // いったんすべてのビューを非表示にする
-  homeView.style.display = 'none';
-  searchView.style.display = 'none';
-  if (collectionView) collectionView.style.display = 'none';
-  if (favoriteView) favoriteView.style.display = 'none';
-  if (marketView) marketView.style.display = 'none';
 
   document.querySelectorAll('.header-nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === viewName);
   });
 
   // モードごとに表示とアイコン・classを切り替える
+  document.body.classList.remove('deck-mode');
+  if (viewName === 'deck') {
+    document.body.classList.remove('home-mode', 'search-mode', 'collection-mode', 'favorite-mode', 'market-mode');
+    document.body.classList.add('deck-mode');
+    window.TCGDeckUI?.openList();
+    return;
+  }
   if (viewName === 'search') {
-    searchView.style.display = 'block';
     document.body.classList.remove('home-mode', 'collection-mode', 'favorite-mode', 'market-mode');
     document.body.classList.add('search-mode');
     
     if (favoriteIcon) favoriteIcon.src = 'images/nav-favorite-active.svg';
-    if (marketIcon) marketIcon.src = 'images/nav-market-active.svg';
 
   } else if (viewName === 'collection') {
     if (collectionView) {
-      collectionView.style.display = 'block';
       renderCollectionCards();
     }
     document.body.classList.remove('home-mode', 'search-mode', 'favorite-mode', 'market-mode');
@@ -264,7 +339,6 @@ function switchView(viewName) {
     
   } else if (viewName === 'favorite') {
     if (favoriteView) {
-      favoriteView.style.display = 'block';
       renderFavoriteCards();
     }
     document.body.classList.remove('home-mode', 'search-mode', 'collection-mode', 'market-mode');
@@ -273,7 +347,6 @@ function switchView(viewName) {
 
   } else if (viewName === 'market') {
     if (marketView) {
-      marketView.style.display = 'block';
       renderMarketRankings();
     }
     document.body.classList.remove('home-mode', 'search-mode', 'collection-mode', 'favorite-mode');
@@ -282,7 +355,6 @@ function switchView(viewName) {
 
   } else {
     // ホームモード
-    homeView.style.display = 'block';
     document.body.classList.remove('search-mode', 'collection-mode', 'favorite-mode', 'market-mode');
     document.body.classList.add('home-mode');
     
@@ -318,37 +390,13 @@ function matchesFreeWordInSameAbility(card, keywords) {
     return true;
   }
 
-  // カードのテキストを取得
-  const rawText = card.text || "";
-
-  // \n で能力ごとに分割する
-  //
-  // 例えば、
-  //
-  // A\nB\nC
-  //
-  // ↓
-  //
-  // [
-  //   "A",
-  //   "B",
-  //   "C"
-  // ]
-  //
-  const abilities = rawText
-    .split(/\r?\n/)
-    .map(text => normalizeQuery(text))
-    .filter(Boolean);
-
-  // 「スター進化」など、1行しかないカードも
-  // abilities が1個になるので普通に検索できる。
-  //
-  // どれか1つの能力について、
-  // 全検索ワードが入っているか確認する。
-  return abilities.some(ability => {
-    return keywords.every(keyword => {
-      return ability.includes(keyword);
-    });
+  // 面をまたいで能力文が一致した扱いにならないよう、面ごとに判定する。
+  return (card._faces || buildCardFaces(card)).some(face => {
+    const abilities = String(face.text || "")
+      .split(/\r?\n/)
+      .map(text => normalizeQuery(text))
+      .filter(Boolean);
+    return abilities.some(ability => keywords.every(keyword => ability.includes(keyword)));
   });
 }
 
@@ -363,60 +411,48 @@ function matchesUnifiedSearch(card, keywords) {
 
   const nameNorm = card._nameNorm || normalizeQuery(card.name || "");
   const codeNorm = card._codeNorm || normalizeQuery(card.product_code || card.search_code || "");
-  const raceNorm = card._raceNorm || normalizeQuery(card.race || "");
   const rubyNorm = card._rubyNorm || normalizeQuery(card.ruby || "");
-
-  // テキストを「\n＝能力の区切り」として分割
-  const abilities = String(card.text || "")
-    .split(/\r?\n/)
-    .map(text => normalizeQuery(text))
-    .filter(Boolean);
-
-  // 各ワードについて、
-  // 名前・型番・種族・ルビ・テキストのどこかに存在するか
-  const fieldMatch = keyword => {
+  const cardWideMatch = keyword => {
     return (
       nameNorm.includes(keyword) ||
       codeNorm.includes(keyword) ||
-      raceNorm.includes(keyword) ||
       rubyNorm.includes(keyword)
     );
   };
 
-  // 1ワードだけならカード全体のどこにあってもOK
-  if (keywords.length === 1) {
-    const keyword = keywords[0];
-
-    return (
-      fieldMatch(keyword) ||
-      abilities.some(ability => ability.includes(keyword))
-    );
-  }
-
-  // 複数ワードの場合
-  //
-  // ① 全ワードが名前・型番・種族・ルビだけで成立する
-  //    → OK
-  //
-  // ② テキストに関係するワードは、
-  //    同じ能力の中に全部存在する必要がある
-  //
-  return abilities.some(ability => {
-
-    return keywords.every(keyword => {
-
-      return (
-        fieldMatch(keyword) ||
-        ability.includes(keyword)
-      );
-
-    });
-
-  }) || keywords.every(keyword => fieldMatch(keyword));
+  // 面ごとに判定するため、複数キーワードが別々の面で成立することはない。
+  return (card._faces || buildCardFaces(card)).some(face => {
+    const faceFields = [face.card_type, face.race, face.text, face.civilizations].map(normalizeQuery);
+    return keywords.every(keyword => cardWideMatch(keyword) || faceFields.some(field => field.includes(keyword)));
+  });
 }
 
 
 // --- 検索・フィルター・ランキング処理を統合したメイン関数 ---
+// Shared by the main card search and the deck editor. Does not read or change DOM state.
+function matchesCardSearchFilters(card, filters = {}) {
+  const { normalizedKeywords = [], subQueryKeywords = [], slideConditions = [], selectedCivs = [],
+    matchMode = 'or', powerMin = NaN, powerMax = NaN, costMin = NaN, costMax = NaN } = filters;
+  if (!matchesUnifiedSearch(card, normalizedKeywords) || !matchesUnifiedSearch(card, subQueryKeywords)) return false;
+  if (!slideConditions.every(cond => matchesUnifiedSearch(card, cond.keywords))) return false;
+  if (selectedCivs.length) {
+    const civs = card._civList || [], individual = selectedCivs.filter(c => !['単色', '多色'].includes(c));
+    const multi = selectedCivs.includes('多色'), mono = selectedCivs.includes('単色');
+    if (individual.length) {
+      const extra = civs.some(c => !individual.includes(c));
+      if (matchMode === 'and') {
+        if (extra || !individual.every(c => civs.includes(c))) return false;
+      } else if (individual.length === 1) {
+        if (!civs.includes(individual[0])) return false;
+      } else if (extra || !civs.some(c => individual.includes(c))) return false;
+    }
+    if (multi && !mono && !card._isMulti) return false;
+    if (mono && !multi && !card._isMono) return false;
+  }
+  return [powerMin, powerMax, costMin, costMax].every(Number.isNaN) ||
+    (card._faces || buildCardFaces(card)).some(face => faceMatchesNumberRange(face, powerMin, powerMax, costMin, costMax));
+}
+
 function renderSearchResults(filterText = "", reset = false) {
   const container = document.getElementById("search-results-grid");
   if (!container) return;
@@ -436,6 +472,8 @@ function renderSearchResults(filterText = "", reset = false) {
   const subQueryKeywords = subQueryRaw.split(/\s+/).map(kw => normalizeQuery(kw)).filter(Boolean);
   const powerMin = document.getElementById("power-min-input") ? parseInt(document.getElementById("power-min-input").value, 10) : NaN;
   const powerMax = document.getElementById("power-max-input") ? parseInt(document.getElementById("power-max-input").value, 10) : NaN;
+  const costMin = document.getElementById("cost-min-input") ? parseInt(document.getElementById("cost-min-input").value, 10) : NaN;
+  const costMax = document.getElementById("cost-max-input") ? parseInt(document.getElementById("cost-max-input").value, 10) : NaN;
 
 // ★スライドメニュー内にあるサブ検索欄を、
 // 最初からある1個目も含めて全部取得する！
@@ -468,151 +506,11 @@ const slideConditions =
   // 選択中の文明ボタンを取得
   const selectedCivs = Array.from(document.querySelectorAll('.civ-btn.active')).map(b => b.dataset.civ);
 
- const filtered = allCards.filter(card => {
-     // 1. メイン検索（カード名・型番・種族・テキスト・ルビ） - 事前正規化済みプロパティを利用して爆速化！
-     const nameNorm = card._nameNorm;
-     const codeNorm = card._codeNorm;
-     const raceNorm = card._raceNorm;
-     const textNorm = card._textNorm;
-     const rubyNorm = card._rubyNorm;
-
-     // すべてのキーワードが、カード名・型番・種族・テキスト・ルビのいずれかに含まれているか (AND検索)
-// 統合フリーワード検索
-const matchesMain =
-  matchesUnifiedSearch(card, normalizedKeywords);
-
-if (!matchesMain) return false;
-
-// 2. 文明フィルターの判定
-    if (selectedCivs.length > 0) {
-      const civs = card._civList || [];
-      const isMulti = card._isMulti;
-      const isMono = card._isMono;
-
-      const civButtons = selectedCivs.filter(c => !['単色', '多色'].includes(c));
-      const hasMultiSelected = selectedCivs.includes('多色');
-      const hasMonoSelected = selectedCivs.includes('単色');
-
-      // HTMLから「ANDかORか」のセレクトボックスの値を取得する（デフォルトは 'or'）
-      const matchModeSelect = document.getElementById('civMatchMode');
-      const matchMode = matchModeSelect ? matchModeSelect.value : 'or';
-
-      let matchesCiv = true;
-
-      if (civButtons.length === 0) {
-        // --- 【パターン0】個別の文明ボタン未選択で「多色」「単色」だけの場合 ---
-        if (hasMultiSelected && !hasMonoSelected) {
-          if (!isMulti) matchesCiv = false;
-        } else if (hasMonoSelected && !hasMultiSelected) {
-          if (!isMono) matchesCiv = false;
-        }
-
-      } else if (civButtons.length > 0) {
-        // --- 【パターンA＆B共通】文明ボタンが選ばれている場合 ---
-        
-        if (matchMode === 'and') {
-          // ▼【AND条件】選んだ文明を「すべて」含んでいること
-          const hasAllCivs = civButtons.every(bCiv => civs.includes(bCiv));
-          
-          // ▼【追加】選んでいない文明（余計な文明）がカードに含まれていないこと
-          const hasExtraCivs = civs.some(c => !civButtons.includes(c));
-
-          // すべて含んでいて、かつ余計な文明が入っていなければOK！
-          if (!hasAllCivs || hasExtraCivs) {
-            matchesCiv = false;
-          }
-        } else {
-          // ▼【OR条件】選んだ文明の「いずれか」を含んでいること ＋ 余計な文明が入っていないかの判定
-          const hasMatchedCiv = civs.some(c => civButtons.includes(c));
-          const hasExtraCivs = civs.some(c => !civButtons.includes(c));
-
-          if (civButtons.length === 1) {
-            // 文明ボタンが1つのときは、余計な文明の制限は気にせず、その文明が含まれていればOK
-            if (!civs.includes(civButtons[0])) matchesCiv = false;
-          } else {
-            // 文明ボタンが複数の（2つ以上の）とき
-            if (!hasMatchedCiv || hasExtraCivs) {
-              matchesCiv = false;
-            }
-          }
-        }
-
-        // 単色・多色の追加フィルターが選ばれている場合の絞り込み
-        if (matchesCiv) {
-          if (hasMultiSelected && !hasMonoSelected) {
-            if (!isMulti) matchesCiv = false;
-          } else if (hasMonoSelected && !hasMultiSelected) {
-            if (!isMono) matchesCiv = false;
-          }
-        }
-      }
-
-      if (!matchesCiv) return false;
-    }
-
-
-   // 3. サブ検索
-// メイン検索と同じ検索方法に統一
-if (subQueryKeywords.length > 0) {
-
-  const matchesSub =
-    matchesUnifiedSearch(card, subQueryKeywords);
-
-  if (!matchesSub) return false;
-}
-
-// ★「＋」で増やした検索欄
-// メイン検索・サブ検索と同じ検索ルールに統一
-for (const cond of slideConditions) {
-
-  // 検索欄が空なら無視
-  if (!cond.keywords || cond.keywords.length === 0) {
-    continue;
-  }
-
-  // この検索欄もメイン・サブと同じ検索方法
-  const matchesCondition =
-    matchesUnifiedSearch(card, cond.keywords);
-
-  // 条件を満たさなければ、このカードは除外
-  if (!matchesCondition) {
-    return false;
-  }
-}
-
-    // ★サブ検索の種類に関係なく、詳細オプションのパワー範囲指定が入力されていればここで絞り込む！
-    if (!isNaN(powerMin) || !isNaN(powerMax)) {
-      const rawPower = card.power ? String(card.power).replace(/[^0-9]/g, "") : "";
-      const cardPowerNum = rawPower ? parseInt(rawPower, 10) : 0;
-      const hasNumericPower = rawPower !== "";
-
-      if (!isNaN(powerMin)) {
-        if (!hasNumericPower || cardPowerNum < powerMin) return false;
-      }
-      if (!isNaN(powerMax)) {
-        if (!hasNumericPower || cardPowerNum > powerMax) return false;
-      }
-    }
-
-
-    // ★追加：詳細オプションのコスト範囲指定が入力されていればここで絞り込む！
-    const costMin = document.getElementById("cost-min-input") ? parseInt(document.getElementById("cost-min-input").value, 10) : NaN;
-    const costMax = document.getElementById("cost-max-input") ? parseInt(document.getElementById("cost-max-input").value, 10) : NaN;
-
-    if (!isNaN(costMin) || !isNaN(costMax)) {
-      const cardCostNum = (card.cost !== undefined && card.cost !== null) ? parseInt(card.cost, 10) : NaN;
-      const hasNumericCost = !isNaN(cardCostNum);
-
-      if (!isNaN(costMin)) {
-        if (!hasNumericCost || cardCostNum < costMin) return false;
-      }
-      if (!isNaN(costMax)) {
-        if (!hasNumericCost || cardCostNum > costMax) return false;
-      }
-    }
-
-    return true;
-  });
+ const filtered = allCards.filter(card => matchesCardSearchFilters(card, {
+    normalizedKeywords, subQueryKeywords, slideConditions, selectedCivs,
+    matchMode: document.getElementById('civMatchMode')?.value || 'or',
+    powerMin, powerMax, costMin, costMax
+  }));
 
   // ▼▼▼ 【ここに入れる！】 ▼▼▼
 const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
@@ -654,15 +552,15 @@ const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
   } else if (sortOrder === 'cost-desc') {
     // コスト(高)：コストが大きい順
     displayCards.sort((a, b) => {
-      const costA = (a.cost !== undefined && a.cost !== null) ? parseInt(a.cost, 10) : -1;
-      const costB = (b.cost !== undefined && b.cost !== null) ? parseInt(b.cost, 10) : -1;
+      const costA = Math.max(...(a._faces || buildCardFaces(a)).map(face => parseInt(face.cost, 10) || -1));
+      const costB = Math.max(...(b._faces || buildCardFaces(b)).map(face => parseInt(face.cost, 10) || -1));
       return costB - costA;
     });
   } else if (sortOrder === 'cost-asc') {
     // コスト(低)：コストが小さい順
     displayCards.sort((a, b) => {
-      const costA = (a.cost !== undefined && a.cost !== null) ? parseInt(a.cost, 10) : 999;
-      const costB = (b.cost !== undefined && b.cost !== null) ? parseInt(b.cost, 10) : 999;
+      const costA = Math.min(...(a._faces || buildCardFaces(a)).map(face => parseInt(face.cost, 10) || 999));
+      const costB = Math.min(...(b._faces || buildCardFaces(b)).map(face => parseInt(face.cost, 10) || 999));
       return costA - costB;
     });
   }
@@ -670,7 +568,7 @@ const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
 
 
   if (displayCards.length === 0) {
-    container.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">一致するカードが見つかりませんでした...</p>`;
+    container.innerHTML = `<p class="empty-search-message">一致するカードが見つかりませんでした...</p>`;
     return;
   }
 
@@ -688,27 +586,15 @@ const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
   // ★ userCollectionのキーになる正式なカード名
   cardEl.dataset.cardName = card.name;
 
-  cardEl.style.position = 'relative';
-
   const imageUrl = card.image_url || card.image || card.img || '';
     const productCode = card.product_code || '26EX2 70/89';
 
     const cardName = card.name;
     let lowestPrice = null;
     
-    if (priceData && priceData[cardName]) {
-      const dates = Object.keys(priceData[cardName]).sort();
-      if (dates.length > 0) {
-        const candidateKey = dates[dates.length - 1];
-        const todayIso = "2026-08-26";
-        const d1 = new Date(candidateKey);
-        const d2 = new Date(todayIso);
-        const diffDays = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays <= 2) {
-          lowestPrice = getLowestPrice(priceData[cardName][candidateKey]);
-        }
-      }
+    const latestPriceDate = getFreshPriceDay(cardName);
+    if (latestPriceDate) {
+      lowestPrice = getLowestPrice(priceData[cardName][latestPriceDate]);
     }
 
     const currentPriceText = lowestPrice !== null ? `¥${Number(lowestPrice).toLocaleString()}` : "¥—";
@@ -737,7 +623,8 @@ const uniqueCheckbox = document.getElementById('uniqueModeCheckbox');
         image: imageUrl,
         name: card.name,
         code: productCode,
-        price: currentPriceText
+        price: currentPriceText,
+        cardData: card
       });
     });
 
@@ -755,8 +642,9 @@ document.addEventListener("DOMContentLoaded", () => {
       
       // ★いまコレクション画面が開いているかどうかをチェックするんだ！
       const collectionView = document.getElementById('collection-view');
-      if (collectionView && collectionView.style.display !== 'none') {
-        renderCollectionCards(); // コレクション画面ならコレクション用を再描画！
+
+      if (document.body.classList.contains('collection-mode')) {
+        renderCollectionCards();
       } else {
         switchView('search');
         const searchInput = document.getElementById("search-input");
@@ -772,11 +660,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (subSearchType) {
     subSearchType.addEventListener("change", (e) => {
       if (e.target.value === 'power') {
-        if (singleWrapper) singleWrapper.style.display = 'none';
-        if (powerWrapper) powerWrapper.style.display = 'flex';
+        singleWrapper?.classList.add('hidden');
+        powerWrapper?.classList.add('show');
       } else {
-        if (singleWrapper) singleWrapper.style.display = 'flex';
-        if (powerWrapper) powerWrapper.style.display = 'none';
+        singleWrapper?.classList.remove('hidden');
+        powerWrapper?.classList.remove('show');
       }
       switchView('search');
       const searchInput = document.getElementById("search-input");
@@ -896,7 +784,7 @@ function renderCards(cards, targetId, type) {
   container.innerHTML = '';
 
   if (cards.length === 0) {
-    container.innerHTML = `<p style="padding: 10px; color: #666; font-size: 0.85rem;">該当するカードが見当たりません</p>`;
+    container.innerHTML = `<p class="empty-search-message">該当するカードが見当たりません</p>`;
     return;
   }
 
@@ -1004,7 +892,8 @@ function renderCards(cards, targetId, type) {
         image: imageUrl,
         name: card.name || 'カード名',
         code: displayCode,
-        price: `¥${Number(latestPriceNum).toLocaleString()}`
+        price: `¥${Number(latestPriceNum).toLocaleString()}`,
+        cardData: card
       });
     });
 
@@ -1022,6 +911,11 @@ function setupNavigationAndSearch() {
     let searchDebounceTimer = null;
     searchInput.addEventListener("input", (e) => {
       const query = e.target.value;
+      if (document.body.classList.contains('deck-mode') && window.TCGDeckUI?.isEditing()) {
+        clearTimeout(searchDebounceTimer);
+        window.TCGDeckUI.setQuery(query);
+        return;
+      }
       // 現在の画面が検索画面（search-view）のときだけ、あるいは必要に応じて自動切替しないようにする場合は switchView を削除・調整できます
       // ここでは入力時に自動で検索画面に切り替わらないように switchView('search') をコメントアウト・削除します
 
@@ -1089,7 +983,7 @@ function setupNavigationAndSearch() {
   window.addEventListener('scroll', () => {
     const searchView = document.getElementById('search-view');
     // 検索画面が表示されているときだけ発火させる
-    if (searchView && searchView.style.display !== 'none') {
+    if (document.body.classList.contains('search-mode')) {
       const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
       // ページの一番下からあと 200px くらいの位置に来たら次の50枚をロード！
       if (scrollTop + clientHeight >= scrollHeight - 200) {
@@ -1105,6 +999,66 @@ function setupNavigationAndSearch() {
 const modal = document.getElementById('card-modal');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 
+function renderModalCardText(card) {
+  const section = document.getElementById('modal-card-text-section');
+  const container = document.getElementById('modal-card-text');
+  if (!section || !container) return;
+
+  container.replaceChildren();
+  const faces = card ? (card._faces || buildCardFaces(card)) : [];
+  const facesWithText = faces.filter(face => String(face.text || '').trim());
+  section.hidden = facesWithText.length === 0;
+
+  facesWithText.forEach((face, index) => {
+    const faceEl = document.createElement('article');
+    faceEl.className = 'card-text-face';
+    if (facesWithText.length > 1) {
+      const label = document.createElement('div');
+      const details = [face.card_type, face.cost ? `コスト ${face.cost}` : ''].filter(Boolean);
+      label.className = 'card-text-face-label';
+      label.textContent = details.join(' / ') || `面 ${index + 1}`;
+      faceEl.appendChild(label);
+    }
+    const text = document.createElement('p');
+    text.className = 'card-text-face-body';
+    text.textContent = face.text;
+    faceEl.appendChild(text);
+    container.appendChild(faceEl);
+  });
+}
+
+function renderModalCardSpecs(card) {
+  const container = document.getElementById('modal-card-specs');
+  if (!container) return;
+  container.replaceChildren();
+
+  const faces = card ? (card._faces || buildCardFaces(card)) : [];
+  const formatValues = field => {
+    const values = faces.map(face => {
+      const value = face[field];
+      return field === 'civilizations' ? asArray(value).filter(Boolean).join('/') : String(value || '');
+    }).filter(Boolean);
+    return [...new Set(values)].join(' / ') || '—';
+  };
+
+  const addRow = (leftLabel, leftField, rightLabel, rightField) => {
+    const row = document.createElement('tr');
+    const leftHeader = document.createElement('th');
+    const leftValue = document.createElement('td');
+    const rightHeader = document.createElement('th');
+    const rightValue = document.createElement('td');
+    leftHeader.textContent = leftLabel;
+    leftValue.textContent = formatValues(leftField);
+    rightHeader.textContent = rightLabel;
+    rightValue.textContent = formatValues(rightField);
+    row.append(leftHeader, leftValue, rightHeader, rightValue);
+    container.appendChild(row);
+  };
+  addRow('種類', 'card_type', '文明', 'civilizations');
+  addRow('レアリティ', 'rarity', 'パワー', 'power');
+  addRow('コスト', 'cost', '種族', 'race');
+}
+
 function openCardModal(cardData) {
   if (!modal) return;
   
@@ -1115,6 +1069,9 @@ function openCardModal(cardData) {
   document.getElementById('modal-card-title').textContent = cardData.name;
   document.getElementById('modal-card-code').textContent = cardData.code;
   document.getElementById('modal-card-price').textContent = cardData.price;
+  const sourceCard = cardData.cardData || allCards.find(card => card.name === cardData.name);
+  renderModalCardSpecs(sourceCard);
+  renderModalCardText(sourceCard);
   
   // === ここからショップ情報を動的に組み立てるよ！ ===
   const cardName = cardData.name;
@@ -1127,26 +1084,9 @@ function openCardModal(cardData) {
   // === 最新日のみの平均価格と販売数を計算（ただし、最新日が3日以上前なら非表示・「—」にする） ===
   let latestDayPrices = null;
   let latestDayKey = null;
-  if (priceData && priceData[cardName]) {
-    const dates = Object.keys(priceData[cardName]).sort();
-    if (dates.length > 0) {
-      const candidateKey = dates[dates.length - 1];
-      
-      // 日付の差分（日数）を計算する
-      const todayIso = "2026-08-26"; // または環境の最新日基準（ここでは2026-08-26を想定、またはdate比較）
-      const d1 = new Date(candidateKey);
-      const d2 = new Date(todayIso);
-      const diffTime = d2 - d1;
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      
-      // 3日前より古い（diffDays > 2）場合は最新データなしとみなす
-      if (diffDays <= 2) {
-        latestDayKey = candidateKey;
-        if (priceData[cardName][latestDayKey]) {
-          latestDayPrices = priceData[cardName][latestDayKey];
-        }
-      }
-    }
+  latestDayKey = getFreshPriceDay(cardName);
+  if (latestDayKey) {
+    latestDayPrices = priceData[cardName][latestDayKey];
   }
 
   // 代わりに実際に最新日に存在するショップの価格から平均を計算
@@ -1275,11 +1215,10 @@ function openCardModal(cardData) {
       if (btn) {
         btn.onclick = () => {
           document.querySelectorAll('.chart-filter-btn').forEach(b => {
-            b.style.background = '#f1f5f9';
-            b.style.color = '#666';
+            b.classList.remove('active');
           });
-          btn.style.background = '#3b82f6';
-          btn.style.color = '#fff';
+
+          btn.classList.add('active');
 
           const filtered = getChartData(buttons[btnId]);
           window.myCardChart.data.labels = filtered.labels;
@@ -1356,7 +1295,7 @@ function openCardModal(cardData) {
     
     // データが取れなかったときの保険
     if (!shopsHtml) {
-      shopsHtml = `<li class="shop-item" style="justify-content: center; color: #888;">現在取り扱いのあるショップ情報が見当たりません</li>`;
+      shopsHtml = `<li class="shop-item shop-empty-message">現在取り扱いのあるショップ情報が見当たりません</li>`;
     }
     
     shopListContainer.innerHTML = shopsHtml;
@@ -1449,14 +1388,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const zoomedImg = document.getElementById('zoomed-card-img');
 
   if (modalImg && zoomModal && zoomedImg) {
-    modalImg.style.cursor = 'zoom-in';
     modalImg.addEventListener('click', () => {
       zoomedImg.src = modalImg.src;
-      zoomModal.style.display = 'flex';
+      zoomModal.classList.add('active');
     });
 
     zoomModal.addEventListener('click', () => {
-      zoomModal.style.display = 'none';
+      zoomModal.classList.remove('active');
     });
   }
 
@@ -1580,20 +1518,17 @@ function bindSubSearchRowEvents(row) {
     addSubBtn.addEventListener("click", () => {
       const newRow = document.createElement("div");
       newRow.className = "sub-search-row";
-      newRow.style.cssText = "display: flex; gap: 6px; align-items: center; margin-top: 6px;";
      newRow.innerHTML = `
-  <div style="position: relative; flex: 1; display: flex; align-items: center;">
+  <div class="sub-search-input-wrap">
     <input
-      type="text"
-      class="slide-sub-input"
-      placeholder="追加キーワード..."
-      style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;"
+    type="text"
+    class="slide-sub-input"
+    placeholder="追加キーワード..."
     />
 
     <button
       type="button"
-      class="remove-sub-search-btn"
-      style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;"
+      class="remove-sub-search-btn cursor-pointer font-size-085 color-slate-400 display-flex align-items-center justify-content-center border-none bg-transparent"
       title="削除"
     >✕</button>
   </div>
@@ -1624,15 +1559,19 @@ function bindSubSearchRowEvents(row) {
       const container = document.getElementById("dynamic-sub-search-container");
       if (container) {
         container.innerHTML = `
-          <div class="sub-search-row" style="display: flex; gap: 6px; align-items: center;">
-            <select class="slide-sub-type" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; background: #fff; outline: none;">
+          <div class="sub-search-row">
+            <select class="slide-sub-type">
               <option value="free">フリー</option>
               <option value="text">テキスト</option>
               <option value="race">種族</option>
             </select>
-            <div style="position: relative; flex: 1; display: flex; align-items: center;">
-              <input type="text" class="slide-sub-input" placeholder="追加キーワード..." style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;" />
-              <button class="remove-sub-search-btn" style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;" title="削除">✕</button>
+            <div class="sub-search-input-wrap">
+              <input
+                type="text"
+                class="slide-sub-input"
+                placeholder="追加キーワード..."
+              />
+              <button class="remove-sub-search-btn" title="削除">✕</button>
             </div>
           </div>
         `;
@@ -1723,7 +1662,7 @@ function renderFavoriteCards() {
   }
 
   if (displayCards.length === 0) {
-    container.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">条件に一致するほしいものリストのカードがありません...</p>`;
+    container.innerHTML = `<p class="empty-search-message">条件に一致するほしいものリストのカードがありません...</p>`;
     return;
   }
 
@@ -1733,7 +1672,6 @@ function renderFavoriteCards() {
     cardEl.className = 'card-item draggable-card';
     cardEl.setAttribute('draggable', 'true');
     cardEl.dataset.cardName = card.name;
-    cardEl.style.position = 'relative';
     
     const imageUrl = card.image_url || card.image || card.img || '';
     const productCode = card.product_code || '';
@@ -1749,16 +1687,9 @@ function renderFavoriteCards() {
     const count = userFavorite[card.name] || 1;
 
     let lowestPrice = null;
-    if (priceData && priceData[card.name]) {
-      const dates = Object.keys(priceData[card.name]).sort();
-      if (dates.length > 0) {
-        const candidateKey = dates[dates.length - 1];
-        const todayIso = "2026-08-26";
-        const d1 = new Date(candidateKey);
-        const d2 = new Date(todayIso);
-        const diffDays = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
-        if (diffDays <= 2) {
-          const dayData = priceData[card.name][candidateKey];
+    const latestPriceDate = getFreshPriceDay(card.name);
+    if (latestPriceDate) {
+          const dayData = priceData[card.name][latestPriceDate];
           const arr = [];
           if (dayData.cardrush && Array.isArray(dayData.cardrush)) {
             const p = dayData.cardrush[0];
@@ -1769,30 +1700,12 @@ function renderFavoriteCards() {
             if (p !== "×" && typeof p === 'number' && p > 0) arr.push(p);
           }
           if (arr.length > 0) lowestPrice = Math.min(...arr);
-        }
-      }
     }
 
     const priceText = lowestPrice !== null ? `¥${lowestPrice.toLocaleString()}` : "¥—";
 
  cardEl.innerHTML = `
-  <div style="
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    background: #ff4757;
-    color: #fff;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: bold;
-    border-radius: 50%;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    z-index: 2;
-  ">×${count}</div>
+  <div class="card-count-badge">×${count}</div>
 
   <div class="card-image-wrapper">
     <img src="${imageUrl}" alt="${displayName}" class="card-thumb" loading="lazy" />
@@ -1939,7 +1852,7 @@ function renderMarketCardsWithRanking(cards, targetId, type) {
   container.innerHTML = '';
 
   if (cards.length === 0) {
-    container.innerHTML = `<p style="padding: 10px; color: #666; font-size: 0.85rem;">該当するカードが見当たりません</p>`;
+    container.innerHTML = `<p class="empty-list-message">該当するカードが見当たりません</p>`;
     return;
   }
 
@@ -2001,24 +1914,17 @@ function renderMarketCardsWithRanking(cards, targetId, type) {
       displayCode = match[2].trim();
     }
 
-    // 何位かを表示するバッジ（1位金、2位銀、3位銅、4位以降グレー）
-    const badgeColors = ['#f59e0b', '#94a3b8', '#b45309'];
-    const bgColor = index < 3 ? badgeColors[index] : '#64748b';
-    const rankBadgeHtml = `
-      <div style="
-        position: absolute;
-        top: 6px;
-        left: 6px;
-        background: ${bgColor};
-        color: #fff;
-        padding: 2px 8px;
-        font-size: 0.75rem;
-        font-weight: bold;
-        border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        z-index: 2;
-      ">${index + 1}位</div>
-    `;
+      const rank = index + 1;
+
+      const rankClass =
+        rank === 1 ? 'rank-1' :
+        rank === 2 ? 'rank-2' :
+        rank === 3 ? 'rank-3' :
+        'rank-other';
+
+      const rankBadgeHtml = `
+        <div class="rank-badge ${rankClass}">${rank}位</div>
+      `;
 
     cardEl.innerHTML = `
       ${rankBadgeHtml}
@@ -2031,14 +1937,14 @@ function renderMarketCardsWithRanking(cards, targetId, type) {
       </div>
     `;
     
-    cardEl.style.position = 'relative';
 
     cardEl.addEventListener('click', () => {
       openCardModal({
         image: imageUrl,
         name: card.name || 'カード名',
         code: displayCode,
-        price: priceText
+        price: priceText,
+        cardData: card
       });
     });
 
@@ -2164,7 +2070,7 @@ function renderCollectionCards() {
   }
 
   if (displayCards.length === 0) {
-    container.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">条件に一致するコレクションカードがありません...</p>`;
+    container.innerHTML = `<p class="empty-search-message">条件に一致するコレクションカードがありません...</p>`;
     return;
   }
 
@@ -2177,8 +2083,6 @@ function renderCollectionCards() {
 
   // userCollectionのキーになる正式名称を保存
   cardEl.dataset.cardName = card.name;
-
-  cardEl.style.position = 'relative';
     
     const imageUrl = card.image_url || card.image || card.img || '';
     const productCode = card.product_code || '';
@@ -2195,45 +2099,20 @@ function renderCollectionCards() {
 
     // 最新価格の取得
     let lowestPrice = null;
-    if (priceData && priceData[card.name]) {
-      const dates = Object.keys(priceData[card.name]).sort();
-      if (dates.length > 0) {
-        const candidateKey = dates[dates.length - 1];
-        const todayIso = "2026-08-26";
-        const d1 = new Date(candidateKey);
-        const d2 = new Date(todayIso);
-        const diffDays = Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays <= 2) {
-          lowestPrice = getLowestPrice(priceData[card.name][candidateKey]);
-        }
-      }
+    const latestPriceDate = getFreshPriceDay(card.name);
+    if (latestPriceDate) {
+      lowestPrice = getLowestPrice(priceData[card.name][latestPriceDate]);
     }
     const currentPriceText = lowestPrice !== null ? `¥${Number(lowestPrice).toLocaleString()}` : "¥—";
 
     cardEl.innerHTML = `
-      <div style="
-        position: absolute;
-        top: -8px;
-        right: -8px;
-        background: #ff4757;
-        color: #fff;
-        width: 40px;
-        height: 40px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.75rem;
-        font-weight: bold;
-        border-radius: 50%;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        z-index: 2;
-      ">×${count}</div>
+  <div class="card-count-badge">×${count}</div>
+
       <img src="${imageUrl}" alt="${displayName}" loading="lazy">
       <div class="card-code">${displayCode}</div>
       <div class="card-title" title="${displayName}">${displayName}</div>
       <div class="price-container">
-        <div class="price-transition" style="color: #3b82f6;">${currentPriceText}</div>
+        <div class="price-transition price-blue">${currentPriceText}</div>
       </div>
     `;
 
@@ -2242,7 +2121,8 @@ function renderCollectionCards() {
         image: imageUrl,
         name: card.name,
         code: productCode,
-        price: currentPriceText
+        price: currentPriceText,
+        cardData: card
       });
     });
 
@@ -2263,46 +2143,13 @@ document.addEventListener("DOMContentLoaded", () => {
   floatingBtn.id = 'floating-add-card-btn';
   floatingBtn.title = 'カードを追加';
   floatingBtn.innerHTML = `<span>＋ カードを追加</span>`;
-  floatingBtn.style.cssText = `
-    position: fixed;
-    bottom: 28px;
-    right: 28px;
-    height: 52px;
-    padding: 0 22px;
-    border-radius: 26px;
-    background: #3b82f6;
-    color: #fff;
-    border: none;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-    cursor: pointer;
-    display: none; /* 初期状態は非表示（コレクション画面以外で表示されないようにする） */
-    align-items: center;
-    gap: 8px;
-    font-size: 0.95rem;
-    font-weight: bold;
-    z-index: 1998;
-    transition: transform 0.2s ease, background 0.2s ease;
-  `;
-
-  floatingBtn.onmouseover = () => { 
-    floatingBtn.style.transform = 'scale(1.05)'; 
-    floatingBtn.style.background = '#2563eb'; 
-  };
-  floatingBtn.onmouseout = () => { 
-    floatingBtn.style.transform = 'scale(1)'; 
-    floatingBtn.style.background = '#3b82f6'; 
-  };
+  floatingBtn.className = 'floating-add-card-btn';
 
   document.body.appendChild(floatingBtn);
 
   const drawer = document.getElementById('search-drawer');
   const backdrop = document.getElementById('search-drawer-backdrop');
   const closeBtn = document.getElementById('search-drawer-close');
-
-  // 💡 裏のぼかし（バックドロップ）を表示させないように非表示に固定
-  if (backdrop) {
-    backdrop.style.display = 'none';
-  }
 
   // --- ★ドロワー内の検索窓やボタンのイベント設定 ---
   const drawerSearchInput = document.getElementById('drawer-search-input');
@@ -2414,21 +2261,18 @@ document.addEventListener("DOMContentLoaded", () => {
     drawerAddSubBtn.addEventListener("click", () => {
       const newRow = document.createElement("div");
       newRow.className = "sub-search-row";
-      newRow.style.cssText = "display: flex; gap: 6px; align-items: center; margin-top: 6px;";
       newRow.innerHTML = `
-      <div style="position: relative; flex: 1; display: flex; align-items: center;">
+      <div class="sub-search-input-wrap">
 
         <input
           type="text"
           class="slide-sub-input"
           placeholder="追加キーワード..."
-          style="width: 100%; padding: 6px 26px 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; background: #fff;"
         />
 
         <button
           type="button"
           class="remove-sub-search-btn"
-          style="position: absolute; right: 6px; background: transparent; border: none; color: #94a3b8; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px;"
           title="削除"
         >✕</button>
 
@@ -2531,7 +2375,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const collectionView = document.getElementById('collection-view');
 
-          if (collectionView && collectionView.style.display !== 'none') {
+          if (collectionView && document.body.classList.contains('collection-mode')) {
             renderCollectionCards();
           }
 
@@ -2727,31 +2571,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!matchesAllSlide) return false;
       }
 
-      // 4. パワー範囲指定
-      if (!isNaN(powerMin) || !isNaN(powerMax)) {
-        const rawPower = card.power ? String(card.power).replace(/[^0-9]/g, "") : "";
-        const cardPowerNum = rawPower ? parseInt(rawPower, 10) : 0;
-        const hasNumericPower = rawPower !== "";
-
-        if (!isNaN(powerMin)) {
-          if (!hasNumericPower || cardPowerNum < powerMin) return false;
-        }
-        if (!isNaN(powerMax)) {
-          if (!hasNumericPower || cardPowerNum > powerMax) return false;
-        }
-      }
-
-      // 5. コスト範囲指定
-      if (!isNaN(costMin) || !isNaN(costMax)) {
-        const cardCostNum = (card.cost !== undefined && card.cost !== null) ? parseInt(card.cost, 10) : NaN;
-        const hasNumericCost = !isNaN(cardCostNum);
-
-        if (!isNaN(costMin)) {
-          if (!hasNumericCost || cardCostNum < costMin) return false;
-        }
-        if (!isNaN(costMax)) {
-          if (!hasNumericCost || cardCostNum > costMax) return false;
-        }
+      // 4. パワー・コスト範囲指定は、同じ面が両方満たす場合だけ一致。
+      if ((!isNaN(powerMin) || !isNaN(powerMax) || !isNaN(costMin) || !isNaN(costMax)) &&
+          !(card._faces || buildCardFaces(card)).some(face =>
+            faceMatchesNumberRange(face, powerMin, powerMax, costMin, costMax)
+          )) {
+        return false;
       }
 
       return true;
@@ -2782,15 +2607,21 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (sortOrder === 'release-old') {
       displayCards.sort((a, b) => (a.id !== undefined ? Number(a.id) : 0) - (b.id !== undefined ? Number(b.id) : 0));
     } else if (sortOrder === 'cost-desc') {
-      displayCards.sort((a, b) => (parseInt(b.cost, 10) || -1) - (parseInt(a.cost, 10) || -1));
+      displayCards.sort((a, b) =>
+        Math.max(...(b._faces || buildCardFaces(b)).map(face => parseInt(face.cost, 10) || -1)) -
+        Math.max(...(a._faces || buildCardFaces(a)).map(face => parseInt(face.cost, 10) || -1))
+      );
     } else if (sortOrder === 'cost-asc') {
-      displayCards.sort((a, b) => (parseInt(a.cost, 10) || 999) - (parseInt(b.cost, 10) || 999));
+      displayCards.sort((a, b) =>
+        Math.min(...(a._faces || buildCardFaces(a)).map(face => parseInt(face.cost, 10) || 999)) -
+        Math.min(...(b._faces || buildCardFaces(b)).map(face => parseInt(face.cost, 10) || 999))
+      );
     }
 
     drawerResultsGrid.innerHTML = "";
 
     if (displayCards.length === 0) {
-      drawerResultsGrid.innerHTML = `<p style="padding: 20px; color: #666; font-size: 0.9rem; grid-column: 1 / -1; text-align: center;">一致するカードが見つかりませんでした...</p>`;
+      drawerResultsGrid.innerHTML = `<p class="empty-search-message">一致するカードが見つかりませんでした...</p>`;
       return;
     }
 
@@ -2839,7 +2670,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         console.log("ドロワーからクリックでカードを追加:", cardName, " / 現在の数:", userCollection[cardName]);
         if (typeof saveCollection === 'function') saveCollection();
-        if (document.getElementById('collection-view').style.display !== 'none') {
+        if (document.body.classList.contains('collection-mode')) {
           if (typeof renderCollectionCards === 'function') renderCollectionCards();
         }
       });
@@ -3130,7 +2961,7 @@ if (favoriteViewEl) {
           if (typeof saveCollection === 'function') saveCollection();
           
           const collectionView = document.getElementById('collection-view');
-          if (collectionView && collectionView.style.display !== 'none') {
+          if (collectionView && document.body.classList.contains('collection-mode')) {
             if (typeof renderCollectionCards === 'function') renderCollectionCards();
           }
         }

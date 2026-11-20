@@ -67,7 +67,31 @@ body {
 .nav-buttons-group {
   display: none;
   align-items: center;
-  gap: 12px;
+}
+
+/* 1個目 */
+.header-nav-btn:nth-child(1) {
+  margin-right: 1px;
+}
+
+/* 2個目 */
+.header-nav-btn:nth-child(2) {
+  margin-right: 1px;
+}
+
+/* 3個目 */
+.header-nav-btn:nth-child(3) {
+  margin-right: 14px;
+}
+
+/* 4個目 */
+.header-nav-btn:nth-child(4) {
+  margin-right: 4px;
+}
+
+/* 5個目 */
+.header-nav-btn:nth-child(5) {
+  margin-right: 8px;
 }
 
 /* ヘッダー内のナビボタン（ホーム以外のモード用） */
@@ -78,7 +102,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2px 4px;
+  padding: 2px 1px;
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -99,9 +123,25 @@ body {
 
 /* アイコン自体のサイズ感を画像に合わせてしっかり大きく設定 */
 .nav-icon-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+/* 検索・コレクション・ほしいものでは
+   ヘッダーのアイコンを白くする */
+body.search-mode .header-nav-btn .nav-icon-img,
+body.collection-mode .header-nav-btn .nav-icon-img,
+body.favorite-mode .header-nav-btn .nav-icon-img,
+body.market-mode .header-nav-btn .nav-icon-img {
+
+  filter: brightness(0) invert(1);
+}
+
+
+body.home-mode .nav-icon-img {
   width: 42px;
   height: 42px;
-  object-fit: contain;
 }
 
 .user-btn {
@@ -123,7 +163,7 @@ body {
 .home-nav-bar {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 6px;
   padding: 16px 32px 24px 32px;
 }
 
@@ -142,6 +182,22 @@ body:not(.home-mode) .home-nav-bar {
   --fill-color-1: transparent;
   --fill-color-2: #898989;
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.home-nav-item:nth-child(1) {
+  margin-right: 5px;
+}
+
+.home-nav-item:nth-child(2) {
+  margin-right: 16px;
+}
+
+.home-nav-item:nth-child(3) {
+  margin-right: 5px;
+}
+
+.home-nav-item:nth-child(4) {
+  margin-right: 10px;
 }
 
 .home-nav-item:hover {
@@ -358,6 +414,23 @@ body:not(.home-mode) .nav-buttons-group {
   transform: translateY(0);
 }
 
+.modal-layout {
+  display: block;
+}
+
+.modal-media {
+  margin: 0 auto 16px;
+  text-align: center;
+}
+
+.modal-media .modal-card-image {
+  width: 150px;
+}
+
+.modal-main {
+  min-width: 0;
+}
+
 .modal-close-btn {
   position: absolute;
   top: 12px;
@@ -403,12 +476,50 @@ body:not(.home-mode) .nav-buttons-group {
 .modal-price-summary {
   font-size: 0.9rem;
   font-weight: bold;
+  white-space: nowrap;
 }
 
 .modal-price-val {
   color: #d32f2f;
   font-size: 1.1rem;
   margin-left: 6px;
+}
+
+.modal-details-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.modal-card-specs {
+  flex: 1;
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.modal-card-specs th,
+.modal-card-specs td {
+  border: 1px solid #cbd5e1;
+  padding: 5px 6px;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.modal-card-specs th {
+  width: 21%;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+  text-align: center;
+}
+
+.modal-card-specs td {
+  color: #1e293b;
+  font-weight: 600;
+  text-align: center;
 }
 
 .modal-section {
@@ -419,6 +530,45 @@ body:not(.home-mode) .nav-buttons-group {
   font-size: 0.9rem;
   color: #444;
   margin-bottom: 10px;
+}
+
+.modal-card-text {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #cbd5e1;
+  border-top: 0;
+  background: #ffffff;
+}
+
+.card-text-section > h3 {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.card-text-face {
+  padding: 0;
+}
+
+.card-text-face-label {
+  margin-bottom: 8px;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.card-text-face-body {
+  margin: 0;
+  color: #111827;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
 }
 
 .graph-placeholder {
@@ -471,24 +621,25 @@ body:not(.home-mode) .nav-buttons-group {
 /* 文明フィルターバーのスタイル */
 .civ-filter-bar {
   display: flex;
-  padding: 12px 32px;
-  gap: 8px;
-  overflow-x: auto;
+  justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 32px;
 }
 
 .civ-btn {
   background-color: #94a3b8; /* 理想の画像に近い、しっかりしたグレー */
   border: none;
-  border-radius: 6px;
-  padding: 6px;
+  border-radius: 8px;
+  padding: 7px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 75px;
-  height: 55px;
+  width: 65px;
+  height: 50px;
   transition: background-color 0.2s;
 }
 
@@ -711,4 +862,697 @@ body.market-mode .app-header {
 #drawer-search-results .card-item,
 #drawer-search-results .draggable-card {
   pointer-events: auto;
+}
+
+/* 抽出した共通スタイルを追加 */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.display-none {
+  display: none;
+}
+
+.display-flex {
+  display: flex;
+}
+
+.align-items-center {
+  align-items: center;
+}
+
+.justify-content-between {
+  justify-content: space-between;
+}
+
+.justify-content-center {
+  justify-content: center;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.gap-4 {
+  gap: 4px;
+}
+
+.gap-6 {
+  gap: 6px;
+}
+
+.gap-8 {
+  gap: 8px;
+}
+
+.gap-12 {
+  gap: 12px;
+}
+
+.gap-16 {
+  gap: 16px;
+}
+
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+.white-space-nowrap {
+  white-space: nowrap;
+}
+
+.margin-left-4 {
+  margin-left: 4px;
+}
+
+.margin-left-8 {
+  margin-left: 8px;
+}
+
+.margin-left-10 {
+  margin-left: 10px;
+}
+
+.margin-bottom-6 {
+  margin-bottom: 6px;
+}
+
+.margin-bottom-8 {
+  margin-bottom: 8px;
+}
+
+.margin-bottom-12 {
+  margin-bottom: 12px;
+}
+
+.margin-bottom-16 {
+  margin-bottom: 16px;
+}
+
+.padding-12-32 {
+  padding: 12px 32px;
+}
+
+.padding-0-32-24-32 {
+  padding: 0 32px 24px 32px;
+}
+
+.padding-0-16 {
+  padding: 0 16px;
+}
+
+.font-size-075 {
+  font-size: 0.75rem;
+}
+
+.font-size-085 {
+  font-size: 0.85rem;
+}
+
+.font-size-09 {
+  font-size: 0.9rem;
+}
+
+.font-size-095 {
+  font-size: 0.95rem;
+}
+
+.font-size-11 {
+  font-size: 1.1rem;
+}
+
+.font-size-12 {
+  font-size: 1.2rem;
+}
+
+.font-weight-bold {
+  font-weight: bold;
+}
+
+.color-slate-600 {
+  color: #475569;
+}
+
+.color-slate-500 {
+  color: #64748b;
+}
+
+.color-gray-600 {
+  color: #666;
+}
+
+.color-slate-800 {
+  color: #1e293b;
+}
+
+.bg-white {
+  background: #fff;
+  background-color: #fff;
+}
+
+.bg-slate-50 {
+  background: #f8fafc;
+  background-color: #f8fafc;
+}
+
+.border-radius-6 {
+  border-radius: 6px;
+}
+
+.border-radius-20 {
+  border-radius: 20px;
+}
+
+.border-radius-50 {
+  border-radius: 50%;
+}
+
+.border-1-slate {
+  border: 1px solid #cbd5e1;
+}
+
+.border-top-slate {
+  border-top: 1px solid #e2e8f0;
+}
+
+.border-bottom-slate {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.border-bottom-light {
+  border-bottom: 1px solid #eee;
+}
+
+.reset-button-style {
+  padding: 9px 16px;
+  background: #94a3b8;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.reset-button-style:hover {
+  background: #64748b;
+}
+
+.sub-search-bar-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #fff;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+}
+
+.sub-search-type-select {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.85rem;
+  color: #475569;
+  cursor: pointer;
+}
+
+.sub-search-input-field {
+  border: none;
+  outline: none;
+  font-size: 0.85rem;
+  width: 240px;
+  background: transparent;
+}
+
+.search-grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.chart-filter-button {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: none;
+  background: #f1f5f9;
+  color: #666;
+  cursor: pointer;
+}
+
+/* 追加のインラインスタイル抽出用クラス */
+.width-100 {
+  width: 100%;
+}
+
+.padding-6 {
+  padding: 6px;
+}
+
+.text-align-center {
+  text-align: center;
+}
+
+.outline-none {
+  outline: none;
+}
+
+.position-relative {
+  position: relative;
+}
+
+.bg-transparent {
+  background: transparent;
+  background-color: transparent;
+}
+
+.border-none {
+  border: none;
+}
+
+.line-height-1 {
+  line-height: 1;
+}
+
+.padding-bottom-2 {
+  padding-bottom: 2px;
+}
+
+.margin-0 {
+  margin: 0;
+}
+
+/* 残りのインラインスタイル用クラス追加 */
+.padding-4 {
+  padding: 4px;
+}
+
+.padding-8 {
+  padding: 8px;
+}
+
+.padding-top-12 {
+  padding-top: 12px;
+}
+
+.padding-bottom-12 {
+  padding-bottom: 12px;
+}
+
+.margin-top-2 {
+  margin-top: 2px;
+}
+
+.width-200 {
+  width: 200px;
+}
+
+.height-160 {
+  height: 160px;
+}
+
+.max-width-90 {
+  max-width: 90%;
+}
+
+.max-height-90 {
+  max-height: 90%;
+}
+
+.border-radius-4 {
+  border-radius: 4px;
+}
+
+.border-radius-26 {
+  border-radius: 26px;
+}
+
+.color-slate-300 {
+  color: #cbd5e1;
+}
+
+.color-slate-400 {
+  color: #94a3b8;
+}
+
+.color-text-dark {
+  color: #333;
+}
+
+.select-civ-match {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.select-sub-type {
+  padding: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+  outline: none;
+}
+
+.select-sort-order {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+  outline: none;
+}
+
+.image-zoom-overlay {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.image-zoom-overlay.active {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.image-zoom-box {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  border-radius: 26px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.card-item {
+    position: relative;
+}
+
+.slide-sub-input {
+    padding: 6px 26px 6px 8px;
+}
+
+.remove-sub-search-btn {
+    position: absolute;
+    right: 6px;
+    padding: 2px;
+}
+
+.sub-search-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 6px;
+}
+
+.sub-search-input-wrap {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+#add-sub-search-btn,
+#drawer-add-sub-search-btn {
+    background: #cbd5e1;
+    color: #fff;
+    border: none;
+    width: 36px;
+    height: 36px;
+    font-size: 1.2rem;
+    transition: background 0.2s;
+}
+
+.sub-search-input-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.slide-sub-input {
+  width: 100%;
+  padding: 6px 26px 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  outline: none;
+  background: #fff;
+}
+
+.remove-sub-search-btn {
+  position: absolute;
+  right: 6px;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-count-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ff4757;
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+}
+
+.price-blue {
+  color: #3b82f6;
+}
+
+.rank-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  color: #fff;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+
+.rank-badge.rank-1 {
+  background: #f59e0b;
+}
+
+.rank-badge.rank-2 {
+  background: #94a3b8;
+}
+
+.rank-badge.rank-3 {
+  background: #b45309;
+}
+
+.rank-badge.rank-other {
+  background: #64748b;
+}
+
+.floating-add-card-btn {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  height: 52px;
+  padding: 0 22px;
+  border-radius: 26px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  z-index: 1998;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.floating-add-card-btn:hover {
+  transform: scale(1.05);
+  background: #2563eb;
+}
+
+.floating-add-card-btn.show {
+  display: flex;
+}
+
+
+#home-view,
+#search-view,
+#collection-view,
+#favorite-view,
+#market-view {
+  display: none;
+}
+
+body.home-mode #home-view {
+  display: block;
+}
+
+body.search-mode #search-view {
+  display: block;
+}
+
+body.collection-mode #collection-view {
+  display: block;
+}
+
+body.favorite-mode #favorite-view {
+  display: block;
+}
+
+body.market-mode #market-view {
+  display: block;
+}
+
+#search-drawer-backdrop {
+  display: none;
+}
+
+#single-input-wrapper.hidden {
+  display: none;
+}
+
+#power-input-wrapper {
+  display: none;
+}
+
+#power-input-wrapper.show {
+  display: flex;
+}
+
+.chart-filter-btn {
+  background: #f1f5f9;
+  color: #666;
+}
+
+.chart-filter-btn.active {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.empty-search-message {
+  padding: 20px;
+  color: #666;
+  font-size: 0.9rem;
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
+.empty-list-message {
+  padding: 10px;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.shop-empty-message {
+  justify-content: center;
+  color: #888;
+}
+
+.slide-sub-type {
+  padding: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fff;
+  outline: none;
+}
+
+#modal-card-img {
+  cursor: zoom-in;
+}
+
+.civ-filter-buttons {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  align-items: center;
+}
+
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+
+/* スマホ用 */
+@media (max-width: 768px) {
+  .civ-btn {
+    width: 65px;
+    height: 50px;
+  }
+
+  .civ-filter-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    overflow-x: visible;
+    align-items: center;
+  }
+
+  .modal-details-row {
+    display: grid;
+    gap: 10px;
+  }
+}
+
+@media (min-width: 769px) {
+  .modal-content {
+    width: min(92vw, 1100px);
+    max-width: 1100px;
+    padding: 28px;
+  }
+
+  .modal-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 28px;
+  }
+
+  .modal-media {
+    position: sticky;
+    top: 0;
+    flex: 0 0 280px;
+    margin: 0;
+  }
+
+  .modal-media .modal-card-image {
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .modal-main {
+    flex: 1;
+  }
 }

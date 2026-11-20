@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TCG Manager</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="deck.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="home-mode">
+
+  <!-- ヘッダーエリア -->
+  <header class="app-header">
+    <div class="header-left">
+      <h1 class="app-title cursor-pointer" id="logo-home">TCG Manager</h1>
+    </div>
+    
+    <div class="header-center">
+      <div class="search-box">
+        <img src="images/icon-search.svg" alt="検索" class="search-icon" id="search-trigger-icon">
+        <input type="text" id="search-input" placeholder="カード名、種族、型番で検索..." />
+      </div>
+    </div>
+
+    <button id="deck-header-save" class="deck-header-save" hidden>デッキを保存</button>
+
+    <!-- ヘッダー右側エリア -->
+    <div class="header-right">
+      <!-- ホーム以外のモードでヘッダー右側に表示されるナビボタン群 -->
+      <div class="nav-buttons-group">
+        <button class="header-nav-btn home-icon-style" id="header-home-btn" data-tab="home" title="ホーム">
+          <img src="images/nav-home.svg" alt="ホーム" class="nav-icon-img">
+          <span>ホーム</span>
+        </button>
+        <button class="header-nav-btn home-icon-style" data-tab="collection" title="コレクション">
+          <img src="images/nav-collection.svg" alt="コレクション" class="nav-icon-img">
+          <span>コレクション</span>
+        </button>
+        <button class="header-nav-btn home-icon-style" data-tab="deck" title="デッキ">
+          <img src="images/nav-deck.svg" alt="デッキ" class="nav-icon-img">
+          <span>デッキ</span>
+        </button>
+        <button class="header-nav-btn home-icon-style active" data-tab="search" id="nav-search-btn" title="検索">
+          <img src="images/nav-search.svg" alt="検索" class="nav-icon-img">
+          <span>検索</span>
+        </button>
+        <button class="header-nav-btn home-icon-style" data-tab="favorite" title="ほしいもの">
+          <img src="images/nav-favorite.svg" alt="ほしいもの" class="nav-icon-img" id="favorite-icon">
+          <span>ほしいもの</span>
+        </button>
+        <button class="header-nav-btn home-icon-style" data-tab="market" title="相場">
+          <img src="images/nav-market.svg" alt="相場" class="nav-icon-img " id="market-icon">
+          <span>相場</span>
+        </button>
+      </div>
+
+      <!-- ユーザーアイコン -->
+      <button class="user-btn">
+        <img src="images/icon-user.svg" alt="ユーザー" class="user-icon">
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================== -->
+  <!-- ① ホーム画面ビュー -->
+  <!-- ========================== -->
+  <main class="main-container" id="home-view">
+
+    <!-- ホーム画面用の左側アイコン配置エリア -->
+    <div class="home-nav-bar">
+      <button class="home-nav-item" data-tab="collection" title="コレクション">
+        <img src="images/nav-collection.svg" alt="コレクション" class="nav-icon-img">
+        <span>コレクション</span>
+      </button>
+      <button class="home-nav-item" data-tab="deck" title="デッキ">
+        <img src="images/nav-deck.svg" alt="デッキ" class="nav-icon-img">
+        <span>デッキ</span>
+      </button>
+      <button class="home-nav-item" data-tab="search" title="検索">
+        <img src="images/nav-search.svg" alt="検索" class="nav-icon-img">
+        <span>検索</span>
+      </button>
+      <button class="home-nav-item home-icon-style" data-tab="favorite" title="ほしいもの">
+        <img src="images/nav-favorite.svg" alt="ほしいもの" class="nav-icon-img" id="favorite-icon">
+        <span>ほしいもの</span>
+      </button>
+      <button class="home-nav-item home-icon-style" data-tab="market" title="相場">
+        <img src="images/nav-market.svg" alt="相場" class="nav-icon-img" id="market-icon">
+        <span>相場</span>
+      </button>
+    </div>
+
+    <!-- 上昇ランキング -->
+    <section class="ranking-section">
+      <div class="section-header">
+        <div class="header-left-group">
+          <img src="images/icon-trend-up.svg" alt="上昇" class="title-icon">
+          <h2 class="section-title">今日の上昇ランキング（コレクション・ほしいものリスト内）</h2>
+        </div>
+        <div class="section-actions">
+          <span class="price-type-badge" id="price-type-label">買取価格</span>
+          <button class="refresh-btn" id="toggle-price-btn" title="価格タイプを切り替え">
+            <img src="images/icon-refresh.svg" alt="更新">
+          </button>
+        </div>
+      </div>
+      
+      <div class="horizontal-card-list" id="up-ranking-list"></div>
+    </section>
+
+    <!-- 下落ランキング -->
+    <section class="ranking-section">
+      <div class="section-header">
+        <div class="header-left-group">
+          <img src="images/icon-trend-down.svg" alt="下落" class="title-icon">
+          <h2 class="section-title">今日の下落ランキング（コレクション・ほしいものリスト内）</h2>
+        </div>
+      </div>
+      
+      <div class="horizontal-card-list" id="down-ranking-list"></div>
+    </section>
+
+  </main>
+
+
+  <!-- ========================== -->
+  <!-- ② 検索画面ビュー（初期は非表示） -->
+  <!-- ========================== -->
+  <main class="main-container" id="search-view">
+    
+    <!-- 文明・特性フィルターアイコンの横並びエリア -->
+   <!-- 検索画面の文明フィルターエリア -->
+<!-- 検索画面の文明フィルターエリア（画像通りの右側サブ検索付き） -->
+<div class="civ-filter-bar">
+  <div class="civ-filter-buttons">
+    <button class="civ-btn" data-civ="光"><img src="images/icon-civ-light.svg" alt="光"></button>
+    <button class="civ-btn" data-civ="水"><img src="images/icon-civ-water.svg" alt="水"></button>
+    <button class="civ-btn" data-civ="火"><img src="images/icon-civ-fire.svg" alt="火"></button>
+    <button class="civ-btn" data-civ="自然"><img src="images/icon-civ-nature.svg" alt="自然"></button>
+    <button class="civ-btn" data-civ="闇"><img src="images/icon-civ-dark.svg" alt="闇"></button>
+    <button class="civ-btn" data-civ="ゼロ"><img src="images/icon-civ-zero.svg" alt="ゼロ"></button>
+    <button class="civ-btn" data-civ="多色"><img src="images/icon-civ-multi.svg" alt="多色"></button>
+    <button class="civ-btn" data-civ="単色"><img src="images/icon-civ-monochrome.svg" alt="単色"></button>
+    
+    <!-- ★ここに文明ボタンの横に並ぶチェックボックスを追加！ -->
+    <label class="display-flex align-items-center gap-4 font-size-095 color-slate-600 cursor-pointer white-space-nowrap margin-left-4">
+      <input type="checkbox" id="uniqueModeCheckbox" class="cursor-pointer"> 
+      同名カードを1枚にまとめる
+    </label>
+
+    <!-- ★リセットボタンがあった場所に、並べ替え用のセレクトボックスを設置！ -->
+    <div class="sort-controls">
+      <span class="font-size-085 font-weight-bold color-slate-600 white-space-nowrap">並べ替え:</span>
+      <select id="sort-order-select">
+       <option value="release-new">発売日(新)</option>
+       <option value="release-old">発売日(古)</option>
+       <option value="cost-desc">コスト(高)</option>
+       <option value="cost-asc">コスト(低)</option>
+      </select>
+      <button id="reset-filters-btn" class="reset-button-style margin-left-10">
+        リセット
+      </button>
+    </div>
+  </div>
+
+  <!-- 右側のサブ検索エリア（テキスト・フリーワード＋オプションボタン） -->
+  <div class="sub-search-container sub-search-bar-wrap position-relative">
+    <select id="sub-search-type" class="sub-search-type-select">
+      <option value="free" selected>フリーワード</option>
+      <option value="text">テキスト</option>
+    </select>
+    <span class="color-slate-300">|</span>
+
+    <!-- 入力欄（テキスト・フリーワード用） -->
+    <div id="single-input-wrapper" class="display-flex align-items-center">
+      <input type="text" id="sub-search-input" placeholder="検索ワードを入力..." class="sub-search-input-field" />
+    </div>
+
+    <!-- オプションメニューを開くボタン（歯車アイコンなど） -->
+    <button id="filter-toggle-btn" class="display-flex align-items-center justify-content-center cursor-pointer border-none bg-transparent padding-4" title="詳細オプション">
+      <img src="images/filter-toggle-btn.svg" alt="フィルター" class="width-24 height-24 display-block" />
+    </button>
+  </div>
+
+  <!-- 背景の暗幕（バックドロップ） -->
+  <div id="options-backdrop"></div>
+
+<!-- 右からスライドしてくる詳細オプションメニュー -->
+  <div id="options-popup">
+    <div class="font-weight-bold margin-bottom-16 font-size-11 color-slate-800 display-flex justify-content-between align-items-center border-bottom-slate padding-bottom-12">
+      <span>詳細オプション</span>
+      <button id="options-close-btn" class="cursor-pointer font-size-12 color-slate-500 border-none bg-transparent">✕</button>
+    </div>
+
+
+
+    <!-- パワー範囲指定 -->
+    <div class="margin-bottom-16">
+      <label class="font-size-085 color-slate-500 display-block margin-bottom-6 font-weight-bold">パワー</label>
+      <div class="display-flex align-items-center gap-8">
+        <input type="text" id="power-min-input" placeholder="指定なし" class="width-100 padding-6 border-1-slate border-radius-6 font-size-09 text-align-center bg-slate-50 outline-none" />
+        <span class="font-size-09 color-gray-600">〜</span>
+        <input type="text" id="power-max-input" placeholder="指定なし" class="width-100 padding-6 border-1-slate border-radius-6 font-size-09 text-align-center bg-slate-50 outline-none" />
+      </div>
+    </div>
+
+    <!-- コスト範囲指定 -->
+    <div class="margin-bottom-16">
+      <label class="font-size-085 color-slate-500 display-block margin-bottom-6 font-weight-bold">コスト</label>
+      <div class="display-flex align-items-center gap-8">
+        <input type="text" id="cost-min-input" placeholder="指定なし" class="width-100 padding-6 border-1-slate border-radius-6 font-size-09 text-align-center bg-slate-50 outline-none" />
+        <span class="font-size-09 color-gray-600">〜</span>
+        <input type="text" id="cost-max-input" placeholder="指定なし" class="width-100 padding-6 border-1-slate border-radius-6 font-size-09 text-align-center bg-slate-50 outline-none" />
+      </div>
+    </div>
+
+    <!-- 文明の条件 -->
+    <div class="margin-bottom-16">
+      <label class="font-size-085 color-slate-500 display-block margin-bottom-6 font-weight-bold">文明の条件</label>
+      <div class="display-flex align-items-center justify-content-between bg-slate-50 border-1-slate border-radius-6 padding-8">
+        <span class="font-size-09 color-slate-600">選んだ文明:</span>
+        <select id="civMatchMode" class="select-civ-match">
+          <option value="or">いずれか含む</option>
+          <option value="and">すべて含む</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- サブ検索条件エリア -->
+    <div class="margin-bottom-16 border-top-slate padding-top-12">
+      <label class="font-size-085 color-slate-500 display-block margin-bottom-8 font-weight-bold">サブ検索条件の追加</label>
+      
+      <!-- 動的にサブ検索欄が追加されるコンテナ -->
+<div id="dynamic-sub-search-container" class="display-flex flex-column gap-8 margin-bottom-12">
+
+  <!-- 初期状態のサブ検索欄 -->
+  <div class="sub-search-row display-flex gap-6 align-items-center">
+
+    <div class="position-relative flex-1 display-flex align-items-center">
+
+      <input
+        type="text"
+        class="slide-sub-input width-100 border-1-slate border-radius-6 font-size-085 outline-none bg-white"
+        placeholder="追加キーワード..."
+      />
+
+      <button
+        class="remove-sub-search-btn cursor-pointer font-size-085 color-slate-400 display-flex align-items-center justify-content-center border-none bg-transparent"
+        title="削除"
+      >✕</button>
+
+    </div>
+
+  </div>
+</div>
+
+      <!-- 十字のズレを直して綺麗に真ん中に配置した「＋」ボタン -->
+      <div class="display-flex justify-content-center">
+        <button id="add-sub-search-btn" class="border-radius-50 cursor-pointer font-weight-bold display-flex align-items-center justify-content-center line-height-1 padding-bottom-2" title="条件を追加">+</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+    <!-- 検索結果グリッド表示エリア -->
+    <div class="search-grid-container search-grid-layout padding-0-16" id="search-results-grid">
+    </div>
+
+  </main>
+
+  <!-- ========================== -->
+<!-- ③ コレクション画面ビュー（初期は非表示） -->
+<!-- ========================== -->
+  <!-- ========================== -->
+  <!-- ③ コレクション画面ビュー（初期は非表示） -->
+  <!-- ========================== -->
+  <main class="main-container" id="collection-view">
+    
+    <!-- ★検索画面と同じ文明フィルターバーをここに配置！ -->
+    <div class="civ-filter-bar display-flex justify-content-between align-items-center flex-wrap gap-12 padding-12-32">
+      <div class="civ-filter-buttons">
+        <button class="civ-btn" data-civ="光"><img src="images/icon-civ-light.svg" alt="光"></button>
+        <button class="civ-btn" data-civ="水"><img src="images/icon-civ-water.svg" alt="水"></button>
+        <button class="civ-btn" data-civ="火"><img src="images/icon-civ-fire.svg" alt="火"></button>
+        <button class="civ-btn" data-civ="自然"><img src="images/icon-civ-nature.svg" alt="自然"></button>
+        <button class="civ-btn" data-civ="闇"><img src="images/icon-civ-dark.svg" alt="闇"></button>
+        <button class="civ-btn" data-civ="ゼロ"><img src="images/icon-civ-zero.svg" alt="ゼロ"></button>
+        <button class="civ-btn" data-civ="多色"><img src="images/icon-civ-multi.svg" alt="多色"></button>
+        <button class="civ-btn" data-civ="単色"><img src="images/icon-civ-monochrome.svg" alt="単色"></button>
+
+        <!-- 並べ替えセレクトボックス -->
+        <div class="sort-controls">
+          <span class="font-size-085 font-weight-bold color-slate-600 white-space-nowrap">並べ替え:</span>
+          <select id="collection-sort-select" class="select-sort-order">
+            <option value="release-new">発売日(新)</option>
+            <option value="release-old">発売日(古)</option>
+            <option value="cost-desc">コスト(高)</option>
+            <option value="cost-asc">コスト(低)</option>
+          </select>
+          <button id="collection-reset-btn" class="reset-button-style margin-left-10">
+            リセット
+          </button>
+        </div>
+      </div>
+
+      <!-- コレクション内専用の検索バー -->
+      <div class="sub-search-container sub-search-bar-wrap">
+        <input type="text" id="collection-search-input" placeholder="コレクション内を検索..." class="border-none outline-none font-size-085 bg-transparent width-200" />
+      </div>
+    </div>
+
+    <!-- コレクションカードのグリッド表示エリア -->
+    <div class="padding-0-32-24-32">
+      <div id="collection-results-grid" class="search-grid-layout"></div>
+    </div>
+
+  </main>
+
+  <!-- ========================== -->
+  <!-- ③-b ほしいものリスト画面ビュー（初期は非表示） -->
+  <!-- ========================== -->
+  <main class="main-container" id="favorite-view">
+    
+    <!-- 文明フィルターバー -->
+    <div class="civ-filter-bar display-flex justify-content-between align-items-center flex-wrap gap-12 padding-12-32">
+      <div class="civ-filter-buttons">
+        <button class="civ-btn" data-civ="光"><img src="images/icon-civ-light.svg" alt="光"></button>
+        <button class="civ-btn" data-civ="水"><img src="images/icon-civ-water.svg" alt="水"></button>
+        <button class="civ-btn" data-civ="火"><img src="images/icon-civ-fire.svg" alt="火"></button>
+        <button class="civ-btn" data-civ="自然"><img src="images/icon-civ-nature.svg" alt="自然"></button>
+        <button class="civ-btn" data-civ="闇"><img src="images/icon-civ-dark.svg" alt="闇"></button>
+        <button class="civ-btn" data-civ="ゼロ"><img src="images/icon-civ-zero.svg" alt="ゼロ"></button>
+        <button class="civ-btn" data-civ="多色"><img src="images/icon-civ-multi.svg" alt="多色"></button>
+        <button class="civ-btn" data-civ="単色"><img src="images/icon-civ-monochrome.svg" alt="単色"></button>
+
+        <!-- 並べ替えセレクトボックス -->
+        <div class="sort-controls">
+          <span class="font-size-085 font-weight-bold color-slate-600 white-space-nowrap">並べ替え:</span>
+          <select id="favorite-sort-select" class="select-sort-order">
+            <option value="release-new">発売日(新)</option>
+            <option value="release-old">発売日(古)</option>
+            <option value="cost-desc">コスト(高)</option>
+            <option value="cost-asc">コスト(低)</option>
+          </select>
+          <button id="favorite-reset-btn" class="reset-button-style margin-left-10">
+            リセット
+          </button>
+        </div>
+      </div>
+
+      <!-- ほしいものリスト内専用の検索バー -->
+      <div class="sub-search-container sub-search-bar-wrap">
+        <input type="text" id="favorite-search-input" placeholder="ほしいものリスト内を検索..." class="border-none outline-none font-size-085 bg-transparent width-200" />
+      </div>
+    </div>
+
+    <!-- ほしいものリストカードのグリッド表示エリア -->
+    <div class="padding-0-32-24-32">
+      <div id="favorite-results-grid" class="search-grid-layout"></div>
+    </div>
+
+  </main>
+
+  <!-- ========================== -->
+  <!-- ⑤ 相場画面ビュー（初期は非表示） -->
+  <!-- ========================== -->
+  <main class="main-container" id="market-view">
+
+    <!-- 上昇ランキング（全カード対象・横スクロール） -->
+    <section class="ranking-section">
+      <div class="section-header">
+        <div class="header-left-group">
+          <img src="images/icon-trend-up.svg" alt="上昇" class="title-icon">
+          <h2 class="section-title">今日の上昇ランキング（全カード対象）</h2>
+        </div>
+        <div class="section-actions">
+          <span class="price-type-badge" id="market-up-price-type-label">買取価格</span>
+          <button class="refresh-btn" id="market-up-toggle-price-btn" title="価格タイプを切り替え">
+            <img src="images/icon-refresh.svg" alt="更新">
+          </button>
+        </div>
+      </div>
+      
+      <div class="horizontal-card-list" id="market-up-ranking-list"></div>
+    </section>
+
+    <!-- 下落ランキング（全カード対象・横スクロール） -->
+    <section class="ranking-section">
+      <div class="section-header">
+        <div class="header-left-group">
+          <img src="images/icon-trend-down.svg" alt="下落" class="title-icon">
+          <h2 class="section-title">今日の下落ランキング（全カード対象）</h2>
+        </div>
+      </div>
+      
+      <div class="horizontal-card-list" id="market-down-ranking-list"></div>
+    </section>
+
+  </main>
+
+<!-- ========================== -->
+<!-- ④ 下からスライドしてくる検索ドロワーパネル -->
+<!-- ========================== -->
+<div id="search-drawer-backdrop"></div>
+<div id="search-drawer">
+
+  <div class="drawer-header display-flex justify-content-between align-items-center margin-bottom-12">
+
+    <h2 class="font-size-11 color-slate-800 margin-0">
+      カード検索・追加
+    </h2>
+
+    <button
+      id="search-drawer-close"
+      class="cursor-pointer font-size-12 color-slate-500 border-none bg-transparent"
+    >✕</button>
+
+  </div>
+
+  <!-- 文明ボタンと検索バーの統合バー -->
+  <div class="drawer-filter-bar display-flex justify-content-between align-items-center flex-wrap gap-12 margin-bottom-16">
+    <div class="civ-filter-buttons">
+      <button class="drawer-civ-btn" data-civ="光"><img src="images/icon-civ-light.svg" alt="光"></button>
+      <button class="drawer-civ-btn" data-civ="水"><img src="images/icon-civ-water.svg" alt="水"></button>
+      <button class="drawer-civ-btn" data-civ="火"><img src="images/icon-civ-fire.svg" alt="火"></button>
+      <button class="drawer-civ-btn" data-civ="自然"><img src="images/icon-civ-nature.svg" alt="自然"></button>
+      <button class="drawer-civ-btn" data-civ="闇"><img src="images/icon-civ-dark.svg" alt="闇"></button>
+      <button class="drawer-civ-btn" data-civ="ゼロ"><img src="images/icon-civ-zero.svg" alt="ゼロ"></button>
+      <button class="drawer-civ-btn" data-civ="多色"><img src="images/icon-civ-multi.svg" alt="多色"></button>
+      <button class="drawer-civ-btn" data-civ="単色"><img src="images/icon-civ-monochrome.svg" alt="単色"></button>
+
+      <!-- 同名カードを1枚にまとめるチェックボックス -->
+      <label class="display-flex align-items-center gap-4 font-size-095 color-slate-600 cursor-pointer white-space-nowrap margin-left-4">
+        <input type="checkbox" id="drawerUniqueModeCheckbox" class="cursor-pointer"> 
+        同名カードを1枚にまとめる
+      </label>
+
+      <!-- 並べ替えセレクトボックス -->
+      <div class="sort-controls">
+        <span class="font-size-085 font-weight-bold color-slate-600 white-space-nowrap">並べ替え:</span>
+        <select id="drawer-sort-order-select">
+          <option value="release-new">発売日(新)</option>
+          <option value="release-old">発売日(古)</option>
+          <option value="cost-desc">コスト(高)</option>
+          <option value="cost-asc">コスト(低)</option>
+        </select>
+        <button id="drawer-reset-filters-btn" class="reset-button-style margin-left-10">
+          リセット
+        </button>
+      </div>
+    </div>
+
+    <!-- 右側のサブ検索エリア -->
+    <div class="sub-search-container sub-search-bar-wrap position-relative">
+      <select id="drawer-sub-search-type" class="sub-search-type-select">
+        <option value="free" selected>フリーワード</option>
+        <option value="text">テキスト</option>
+      </select>
+      <span class="color-slate-300">|</span>
+
+      <!-- 入力欄 -->
+      <div class="display-flex align-items-center">
+        <input type="text" id="drawer-search-input" placeholder="検索ワードを入力..." class="sub-search-input-field" />
+      </div>
+
+    <!-- オプションメニューを開くボタン（歯車アイコンなど） -->
+    <button id="drawer-filter-toggle-btn" class="display-flex align-items-center justify-content-center cursor-pointer border-none bg-transparent padding-4" title="詳細オプション">
+      <img src="images/filter-toggle-btn.svg" alt="フィルター" class="width-24 height-24 display-block" />
+    </button>
+    </div>
+  </div>
+
+  <!-- カード一覧 -->
+  <div id="drawer-search-results">
+  </div>
+
+  <!-- 詳細オプションメニュー（検索画面と同じ構造） -->
+  <div id="drawer-options-backdrop"></div>
+  <div id="drawer-options-popup">
+    <div class="font-weight-bold margin-bottom-16 font-size-11 color-slate-800 display-flex justify-content-between align-items-center border-bottom-slate padding-bottom-12">
+      <span>詳細オプション</span>
+      <button id="drawer-options-close-btn" class="cursor-pointer font-size-12 color-slate-500 border-none bg-transparent">✕</button>
+    </div>
+
+
+
+    <!-- パワー範囲指定 -->
+    <div class="margin-bottom-16">
+      <label class="font-size-085 color-slate-500 display-block margin-bottom-6 font-weight-bold">パワー</label>
+      <div class="display-flex align-items-center gap-8">
+        <input type="text" id="drawer-power-min-input" placeholder="指定なし" class="width-100 padding-6 border-1-slate border-radius-6 font-size-09 text-align-center bg-slate-50 outline-none" />
+        <span class="font-size-09 color-gray-600">〜</span>
+        <input type="text" id="drawer-power-max-input" placeholder="指定なし" class="width-100 padding-6 border-1-slate border-radius-6 font-size-09 text-align-center bg-slate-50 outline-none" />
+      </div>
+    </div>
+
+    <!-- コスト範囲指定 -->
+    <div class="margin-bottom-16">
+      <label class="font-size-085 color-slate-500 display-block margin-bottom-6 font-weight-bold">コスト</label>
+      <div class="display-flex align-items-center gap-8">
+        <input type="text" id="drawer-cost-min-input" placeholder="指定なし" class="width-100 padding-6 border-1-slate border-radius-6 font-size-09 text-align-center bg-slate-50 outline-none" />
+        <span class="font-size-09 color-gray-600">〜</span>
+        <input type="text" id="drawer-cost-max-input" placeholder="指定なし" class="width-100 padding-6 border-1-slate border-radius-6 font-size-09 text-align-center bg-slate-50 outline-none" />
+      </div>
+    </div>
+
+    <!-- 文明の条件 -->
+    <div class="margin-bottom-16">
+      <label class="font-size-085 color-slate-500 display-block margin-bottom-6 font-weight-bold">文明の条件</label>
+      <div class="display-flex align-items-center justify-content-between bg-slate-50 border-1-slate border-radius-6 padding-8">
+        <span class="font-size-09 color-slate-600">選んだ文明:</span>
+        <select id="drawer-civMatchMode" class="select-civ-match">
+          <option value="or">いずれか含む</option>
+          <option value="and">すべて含む</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- サブ検索条件エリア -->
+    <div class="margin-bottom-16 border-top-slate padding-top-12">
+      <label class="font-size-085 color-slate-500 display-block margin-bottom-8 font-weight-bold">サブ検索条件の追加</label>
+      
+      <!-- 動的にサブ検索欄が追加されるコンテナ -->
+      <div id="drawer-dynamic-sub-search-container" class="display-flex flex-column gap-8 margin-bottom-12">
+        <!-- 初期状態のサブ検索欄 -->
+        <div class="sub-search-row display-flex gap-6 align-items-center">
+          <select class="slide-sub-type select-sub-type">
+            <option value="free">フリー</option>
+            <option value="text">テキスト</option>
+            <option value="race">種族</option>
+          </select>
+          <div class="position-relative flex-1 display-flex align-items-center">
+            <input type="text" class="slide-sub-input width-100 border-1-slate border-radius-6 font-size-085 outline-none bg-white" placeholder="追加キーワード..."/>
+            <button class="remove-sub-search-btn cursor-pointer font-size-085 color-slate-400 display-flex align-items-center justify-content-center border-none bg-transparent" >✕</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="display-flex justify-content-center">
+        <button id="drawer-add-sub-search-btn" class="border-radius-50 cursor-pointer font-weight-bold display-flex align-items-center justify-content-center line-height-1 padding-bottom-2" title="条件を追加">+</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+  <!-- カード詳細・相場ポップアップ（モーダル） -->
+  <div class="modal-overlay" id="card-modal">
+    <div class="modal-content">
+      <button class="modal-close-btn" id="modal-close-btn">&times;</button>
+      <div class="modal-layout">
+        <aside class="modal-media">
+          <img id="modal-card-img" src="" alt="カード画像" class="modal-card-image">
+        </aside>
+        <div class="modal-main">
+          <div class="modal-header">
+        <div class="modal-card-info">
+          <h2 id="modal-card-title">カード名</h2>
+          <p id="modal-card-code" class="modal-card-code">型番</p>
+          <div class="modal-details-row">
+            <div class="modal-price-summary">
+              <span class="price-label">現在相場:</span>
+              <span id="modal-card-price" class="modal-price-val">¥0</span>
+            </div>
+            <table class="modal-card-specs">
+              <tbody id="modal-card-specs"></tbody>
+            </table>
+          </div>
+        </div>
+          </div>
+
+      <!-- 平均価格・販売数のサマリー情報 -->
+      <div class="modal-section border-bottom-light padding-bottom-12 margin-bottom-12">
+        <div id="modal-summary-info" class="font-size-09 color-text-dark">
+          <div>平均価格: <strong id="modal-avg-price" class="font-size-11">¥—</strong></div>
+          <div class="color-gray-600 font-size-085 margin-top-2">販売数: <span id="modal-sales-count">—</span></div>
+        </div>
+      </div>
+
+      <section class="modal-section card-text-section" id="modal-card-text-section">
+        <h3>特殊能力</h3>
+        <div id="modal-card-text" class="modal-card-text"></div>
+      </section>
+
+      <div class="modal-section">
+        <div class="display-flex flex-column gap-8 margin-bottom-12">
+          <!-- 期間切り替えボタン群 -->
+          <div class="display-flex gap-4 flex-wrap">
+            <button id="chart-btn-all" class="chart-filter-button active">全期間</button>
+            <button id="chart-btn-90d" class="chart-filter-button">90日</button>
+            <button id="chart-btn-60d" class="chart-filter-button">60日</button>
+            <button id="chart-btn-30d" class="chart-filter-button">30日</button>
+            <button id="chart-btn-7d" class="chart-filter-button">7日</button>
+          </div>
+        </div>
+        
+        <!-- グラフ描画用のcanvas -->
+        <div class="position-relative width-100 height-160">
+          <canvas id="priceChart"></canvas>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h3>🛒 最安ショップ情報</h3>
+        <ul class="shop-list">
+          <li class="shop-item">
+            <span class="shop-name">カードショップ A</span>
+            <span class="shop-price">¥1,200</span>
+            <a href="#" class="shop-link-btn" onclick="return false;">在庫あり</a>
+          </li>
+          <li class="shop-item">
+            <span class="shop-name">トレカネット B</span>
+            <span class="shop-price">¥1,280</span>
+            <a href="#" class="shop-link-btn" onclick="return false;">在庫あり</a>
+          </li>
+          <li class="shop-item">
+            <span class="shop-name">ホビーショップ C</span>
+            <span class="shop-price">¥1,350</span>
+            <a href="#" class="shop-link-btn" onclick="return false;">わずか</a>
+          </li>
+        </ul>
+      </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- カード画像拡大用オーバーレイ -->
+<div id="image-zoom-modal" class="display-none image-zoom-overlay">
+  <img id="zoomed-card-img" src="" alt="拡大画像" class="image-zoom-box">
+</div>
+
+  <main id="deck-view" aria-label="デッキメーカー">
+    <section id="deck-list-view" aria-labelledby="deck-list-title">
+      <div class="deck-list-toolbar"><h2 id="deck-list-title">デッキ一覧</h2><button id="deck-create" class="deck-primary">＋ 新しいデッキ</button></div>
+      <p class="deck-local-note">このブラウザに保存したデッキです。</p>
+      <p id="deck-storage-error" class="deck-error" role="alert" hidden></p>
+      <div id="deck-list-grid" class="deck-list-grid"></div>
+    </section>
+    <section id="deck-editor-view" aria-label="デッキ編集" hidden>
+      <div class="deck-workspace">
+        <section class="deck-adopted" aria-label="採用カード">
+          <div class="deck-editor-toolbar">
+            <button id="deck-back" class="deck-icon-button" aria-label="デッキ一覧へ戻る">〈</button>
+            <label class="deck-name-label"><span class="deck-sr-only">デッキ名</span><input id="deck-name" maxlength="100" placeholder="デッキ名" autocomplete="off"></label>
+            <output id="deck-count" aria-live="polite">0/40枚</output>
+            <label class="deck-sort-label">並び替え：<select id="deck-sort"><option value="cost-asc">コスト順（低→高）</option><option value="cost-desc">コスト順（高→低）</option><option value="manual">追加順</option></select></label>
+          </div>
+          <div class="deck-status-row"><span id="deck-state"></span><span id="deck-save-state"></span></div>
+          <p id="deck-rule-warning" class="deck-rule-note">40枚未満・超過でも下書き保存できます。殿堂・同名制限・カード固有ルールは未判定です。</p>
+          <div id="deck-copies" class="deck-copies" aria-label="デッキのカード一覧"></div>
+        </section>
+        <aside class="deck-catalog" aria-label="カード検索・追加">
+          <h2 class="deck-sr-only">カード検索・追加</h2>
+          <div class="deck-query-row"><label class="deck-query-label"><span class="deck-sr-only">デッキに追加するカードを検索</span><input id="deck-query" placeholder="カード名、型番、種族で検索…" autocomplete="off"></label><button id="deck-options-toggle" class="deck-options-toggle" aria-expanded="false" aria-controls="deck-filter-options" aria-label="詳細条件"><img src="images/filter-toggle-btn.svg" alt=""></button></div>
+          <div id="deck-civ-filters" class="deck-civ-filters" aria-label="文明フィルター"></div>
+          <div id="deck-filter-options" class="deck-filter-options" hidden>
+            <label>追加キーワード<input id="deck-extra-query" placeholder="能力テキストなど"></label>
+            <div class="deck-range"><span>コスト</span><input id="deck-cost-min" type="number" min="0" aria-label="コスト下限" placeholder="下限"><span>〜</span><input id="deck-cost-max" type="number" min="0" aria-label="コスト上限" placeholder="上限"></div>
+            <div class="deck-range"><span>パワー</span><input id="deck-power-min" type="number" min="0" aria-label="パワー下限" placeholder="下限"><span>〜</span><input id="deck-power-max" type="number" min="0" aria-label="パワー上限" placeholder="上限"></div>
+            <label>文明の条件<select id="deck-civ-match"><option value="or">いずれか含む</option><option value="and">すべて含む</option></select></label>
+            <label><input id="deck-unique" type="checkbox">同名カードをまとめる</label>
+            <button id="deck-reset-filters" class="deck-secondary">条件をリセット</button>
+          </div>
+          <div class="deck-search-meta"><span id="deck-search-count" role="status"></span><span>クリックで1枚追加</span></div>
+          <div id="deck-search-results" class="deck-search-results"></div>
+          <button id="deck-search-more" class="deck-secondary deck-search-more" hidden>さらに表示</button>
+        </aside>
+      </div>
+    </section>
+    <p id="deck-feedback" class="deck-feedback" role="status" aria-live="polite"></p>
+  </main>
+  <dialog id="deck-card-dialog" class="deck-card-dialog" aria-labelledby="deck-dialog-title">
+    <button id="deck-dialog-close" class="deck-dialog-close" aria-label="閉じる">×</button>
+    <div class="deck-dialog-layout">
+      <div class="deck-dialog-media"><img id="deck-dialog-image" alt=""><button id="deck-set-cover" class="deck-secondary">☆ 主役に設定</button><div class="deck-quantity-control"><button id="deck-quantity-minus" aria-label="採用枚数を1枚減らす">−</button><label><span class="deck-sr-only">採用枚数</span><input id="deck-quantity" type="number" min="0" max="999" step="1"></label><button id="deck-quantity-plus" aria-label="採用枚数を1枚増やす">＋</button></div><p>デッキ採用枚数</p><button id="deck-remove-selected" class="deck-danger">このカードをすべて外す</button></div>
+      <div class="deck-dialog-info"><h2 id="deck-dialog-title"></h2><p id="deck-dialog-code"></p><div id="deck-dialog-specs"></div><h3>テキスト</h3><p id="deck-dialog-text"></p></div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+  <script src="deck-core.js"></script>
+  <script src="deck.js"></script>
+</body>
+</html>

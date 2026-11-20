@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import glob
 import signal
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -242,6 +243,14 @@ def save_json_atomically(filepath, data):
         json.dump(data, f, ensure_ascii=False, indent=4)
     os.replace(tmp_filepath, filepath)
 
+def save_price_files_index():
+    """ブラウザが全期間の価格履歴を読み込むための月別ファイル一覧を保存する。"""
+    files = sorted(
+        os.path.basename(path)
+        for path in glob.glob(os.path.join(DATA_DIR, "prices_????_??.json"))
+    )
+    save_json_atomically(os.path.join(DATA_DIR, "price_files.json"), {"files": files})
+
 async def main():
     start_time = time.time()
     max_runtime_min = int(os.environ.get("MAX_RUNTIME_MINUTES", 200))
@@ -283,6 +292,7 @@ async def main():
     print(f"=== 全 {len(all_cards)} 枚中、残り {total_to_update} 枚の価格取得を開始するよ ===")
 
     if total_to_update == 0:
+        save_price_files_index()
         print("今日の更新はすべて完了しているよ！")
         return
 
@@ -307,6 +317,7 @@ async def main():
 
             # アトミック書き込みで安全に保存
             save_json_atomically(json_filename, data)
+            save_price_files_index()
             
             print(f"進捗: {min(i + batch_size, total_to_update)} / {total_to_update} 枚完了 (アトミック保存済み)")
 

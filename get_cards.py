@@ -128,48 +128,63 @@ def fetch_card_detail(detail_url):
             match = re.search(r'/([^/]+)\.(?:jpg|png)', img_url)
             code = match.group(1) if match else ""
 
-        # コスト
-        cost_tag = detail_soup.select_one('.cost, .card-cost')
-        cost = cost_tag.text.strip() if cost_tag else ""
+        # 面ごとの情報は、同じ添字を同じ面として保存する。
+        # 例: cost[0] と card_type[0] はクリーチャー面、cost[1] と
+        # card_type[1] は呪文面を表す。
+        def values_for(selector):
+            return [tag.get_text(strip=True) for tag in detail_soup.select(selector) if tag.get_text(strip=True)]
 
-        # パワー
-        power_tag = detail_soup.select_one('.power, .card-power')
-        power = power_tag.text.strip() if power_tag else ""
+        costs = values_for('td.cost, td.card-cost')
+        powers = values_for('td.power, td.card-power')
+        civs = [value.split('/') for value in values_for('td.civil, td.civl, .civil, .civl')]
+        races = values_for('td.race, td.card-race')
 
-        # 文明の取得
-        civ_tag = detail_soup.select_one('td.civil, .civil')
-        civs = [civ_tag.text.strip()] if civ_tag and civ_tag.text.strip() else []
-        
-        # ツインパクト等で複数の文明情報がある場合の統合処理
-        all_civ_tags = detail_soup.select('td.civil, .civil')
-        if len(all_civ_tags) > 1:
-            spell_civ_str = all_civ_tags[1].text.strip()
-            civs = merge_civilizations(civs, spell_civ_str)
 
-        # 種族
-        race_tag = detail_soup.select_one('.race, .card-race')
-        race = race_tag.text.strip() if race_tag else ""
+        # カードの種類を取得。
+        # 公式カード詳細ページでは値のセルに `type` クラスが付与されている。
+        card_types = values_for("td.type")
+
+        # レアリティを取得
+        rarity_tags = detail_soup.find_all(
+            string=lambda s: s and "レアリティ" in s
+        )
+
+        rarities = []
+
+        for tag in rarity_tags:
+            parent = tag.parent
+            if parent:
+                next_cell = parent.find_next_sibling("td")
+                if next_cell:
+                    value = next_cell.get_text(strip=True)
+                    if value:
+                        # 公式サイトの U は
+                        # アプリでは UC として扱う
+                        if value.upper() == "U":
+                            value = "UC"
+
+                        rarities.append(value)
 
         # テキストの取得
-        text_tags = detail_soup.select('td.skills.full li, .skills li, .card-text li')
-        if text_tags:
-            card_text = "\n".join([li.text.strip() for li in text_tags if li.text.strip()])
-        else:
-            text_tag = detail_soup.select_one('td.skills.full, .skills, .card-text')
-            card_text = text_tag.text.strip() if text_tag else ""
+        text_cells = detail_soup.select('td.skills.full, .skills, .card-text')
+        card_texts = [
+            cell.get_text("\n", strip=True)
+            for cell in text_cells
+            if cell.get_text(strip=True)
+        ]
             
         return {
             "name": name,
-            "product_code": code,
-            "search_code": normalize(code),
             "image_url": img_url,
             "detail_url": detail_url,
-            "cost": cost,
-            "power": power,
+            "cost": costs,
+            "power": powers,
             "civilizations": civs,
-            "race": race,
-            "text": card_text,
-            "ruby": ""  # ← ルビ用の手入力スペース（必要なカードだけ後から書き込めるよ！）
+            "race": races,
+            "card_type": card_types,
+            "rarity": rarities,
+            "text": card_texts,
+            "ruby": ""
         }
     except Exception:
         return None
