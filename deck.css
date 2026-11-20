@@ -129,7 +129,10 @@ body.deck-mode .app-title { font-family: Impact, 'Arial Black', sans-serif; font
 body.deck-mode .header-center { flex: 0 1 340px; max-width: 340px; margin: 0 16px 0 32px; }
 body.deck-mode .search-box { border-radius: 9px; }
 body.deck-mode .header-right { margin-left: auto; }
-.deck-header-save { font-size: 20px; font-weight: 400; padding: 5px 12px; color: #fff; background: #9dccdf; }
+/* Same light blue as the active deck icon, with dark ink for legibility (about 8:1). */
+.deck-header-save { font-size: 19px; font-weight: 700; padding: 5px 14px; color: #0f3443; background: #9dccdf; box-shadow: inset 0 -2px 0 #0f344322; transition: background .15s; }
+.deck-header-save:hover { background: #b6dceb; }
+.deck-header-save:active { background: #86bed4; }
 #deck-editor-view { height: calc(100dvh - 68px); }
 .deck-workspace { height: 100%; grid-template-columns: minmax(0,68fr) minmax(0,32fr); }
 .deck-adopted { display: flex; flex-direction: column; height: 100%; padding: 8px 15px 12px 16px; overflow: hidden; }
@@ -224,4 +227,63 @@ body.deck-mode .header-right { margin-left: auto; }
   .deck-catalog { height: auto; max-height: none; padding: 12px; border-top: 1px solid #ccc; }.deck-search-results { max-height: 65vh; flex: none; gap: 12px 20px; }.deck-civ-btn { width: calc((100% - 28px)/8); height: 35px; }
   .deck-list-toolbar { padding: 12px 14px 0; }.deck-list-grid { padding: 14px 12px; gap: 20px 12px; }.deck-cover-fan { height: 170px; }.deck-cover-fan .deck-cover-icon { width: 45px; height: 45px; }
   .deck-card-dialog { width: 90vw; max-height: 85vh; margin: auto; overflow-y: auto; padding: 15px; }.deck-dialog-layout { grid-template-columns: minmax(0,1fr); }.deck-dialog-close { position: sticky; left: auto; float: right; top: 0; width: 32px; height: 32px; font-size: 32px; line-height: 28px; }.deck-dialog-media { max-width: 190px; }#deck-dialog-image { max-height: 210px; }.deck-dialog-heading { flex-wrap: wrap; gap: 6px; }.deck-dialog-info h2,#deck-dialog-code { font-size: 14px; }.deck-spec-table { font-size: 13px; }.deck-spec-table th,.deck-spec-table td { padding: 4px; }#deck-dialog-text { min-height: 150px; }
+}
+
+/* ===== Deck analysis strip (cost curve, civilizations, card types) ===== */
+.deck-stats-toggle { flex-shrink: 0; border: 1px solid #cbd5e1; background: #fff; color: #475569; border-radius: 6px; padding: 2px 10px; font-size: 13px; }
+.deck-stats-toggle[aria-expanded="true"] { background: #e8f3f8; border-color: #9dccdf; color: #0f3443; }
+.deck-stats { flex-shrink: 0; display: flex; align-items: stretch; gap: 22px; margin: -2px 0 8px; padding: 6px 12px; background: #f6f7f9; border-radius: 8px; font-size: 12px; color: #475569; min-height: 52px; }
+.deck-stats-empty { align-self: center; margin: 0; color: #64748b; }
+.deck-stat { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.deck-stat + .deck-stat { border-left: 1px solid #e2e8f0; padding-left: 18px; }
+.deck-stat-label { font-weight: 700; color: #334155; white-space: nowrap; }
+.deck-stat-sub { white-space: nowrap; color: #475569; font-variant-numeric: tabular-nums; }
+.deck-curve { display: grid; grid-template-columns: repeat(11, 16px); gap: 2px; align-items: end; height: 40px; }
+.deck-curve-col { display: flex; flex-direction: column; align-items: center; height: 100%; cursor: default; }
+.deck-curve-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.deck-curve-bar { display: block; width: 100%; background: #3f87a6; border-radius: 4px 4px 0 0; }
+.deck-curve-col:hover .deck-curve-bar { background: #2b6a85; }
+.deck-curve-x { font-size: 10px; line-height: 12px; color: #64748b; font-variant-numeric: tabular-nums; }
+.deck-civ-counts, .deck-type-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; list-style: none; margin: 0; padding: 0; }
+.deck-civ-counts li { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.deck-civ-counts img { width: 26px; height: 22px; object-fit: contain; padding: 2px; border-radius: 5px; background: #cecece; }
+.deck-civ-n, .deck-type-counts b { font-weight: 700; color: #1e293b; font-variant-numeric: tabular-nums; }
+.deck-type-counts li { display: flex; gap: 4px; white-space: nowrap; }
+
+/* ===== Deck list: borderless name that becomes editable on click ===== */
+.deck-list-name { display: block; width: 100%; font: inherit; font-size: 1rem; font-weight: 600; color: #222; border: 1px solid transparent; border-radius: 6px; background: transparent; padding: 2px 6px; margin: 0 0 2px; text-overflow: ellipsis; }
+.deck-list-name:hover:not(:disabled) { background: #f1f5f9; cursor: text; }
+.deck-list-name:focus { border-color: #3b82f6; background: #fff; outline: none; box-shadow: 0 0 0 2px #3b82f633; }
+.deck-list-item .deck-list-meta, .deck-list-item .deck-cover-label { margin-left: 8px; }
+.deck-cover-fan { margin-left: 12px; }
+
+/* Mobile-only controls are hidden on wider screens. */
+.deck-mobile-tabs, .deck-search-steps { display: none; }
+
+/* ===== Mobile editor: tabs switch between the deck and the card search ===== */
+@media (max-width:768px) {
+  body.deck-editing .header-center { display: none; }
+  #deck-editor-view { padding-bottom: 64px; }
+  .deck-mobile-tabs { display: grid; grid-template-columns: 1fr 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 3000; background: #fff; border-top: 1px solid #d5d9de; padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); gap: 8px; box-shadow: 0 -2px 10px #0000000f; }
+  .deck-mobile-tabs button { border: 0; border-radius: 8px; padding: 10px 6px; font-size: 15px; font-weight: 700; background: #f1f5f9; color: #475569; }
+  .deck-mobile-tabs button[aria-pressed="true"] { background: #9dccdf; color: #0f3443; }
+  #deck-tab-count { font-variant-numeric: tabular-nums; }
+  #deck-tab-count.is-over { color: #b42318; }
+  .deck-workspace[data-pane="adopted"] .deck-catalog, .deck-workspace[data-pane="catalog"] .deck-adopted { display: none; }
+  .deck-copies { max-height: none; overflow: visible; }
+  .deck-catalog { border-top: 0; padding-top: 10px; }
+  .deck-search-results { max-height: none; overflow: visible; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px 10px; }
+  .deck-search-meta span:last-child { display: none; }
+  .deck-search-card.is-adopted .deck-search-add > img { outline: 3px solid #3f87a6; outline-offset: 1px; }
+  .deck-search-steps { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 6px; }
+  .deck-step-btn { width: 36px; height: 36px; border-radius: 50%; border: 0; font-size: 22px; line-height: 1; font-weight: 700; padding: 0; }
+  .deck-step-minus { background: #e2e8f0; color: #334155; }
+  .deck-step-plus { background: #df4382; color: #fff; }
+  .deck-search-qty { min-width: 26px; text-align: center; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .deck-stats { flex-wrap: wrap; gap: 8px 14px; padding: 8px 10px; }
+  .deck-stat + .deck-stat { border-left: 0; padding-left: 0; }
+  .deck-stat-curve { flex-basis: 100%; }
+  .deck-curve { grid-template-columns: repeat(11, minmax(0, 1fr)); flex: 1; }
+  .deck-feedback { bottom: 76px; }
+  .deck-cover-fan { margin-left: 4px; }
 }

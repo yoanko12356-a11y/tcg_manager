@@ -77,16 +77,24 @@
     }
     for (const deck of decks.slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))) {
       const article = el('article', 'deck-list-item');
-      const open = button('', 'deck-open', () => openEditor(deck), deck.name + 'を編集');
+      const open = button('', 'deck-open', () => openEditor(decks.find(d => d.id === deck.id) || deck), deck.name + 'を編集');
       const fan = el('div', 'deck-cover-fan'), card = C.cover(deck);
       if (card) for (let i = 0; i < 3; i++) { const img = image(card); img.alt = ''; fan.append(img); }
       else fan.append(el('span', 'deck-empty-cover', '＋'));
       const icon = el('img', 'deck-cover-icon'); icon.src = 'images/nav-deck.svg'; icon.alt = ''; fan.append(icon);
-      open.append(fan, el('h3', 'deck-list-name', deck.name));
+      open.append(fan);
+      const name = el('input', 'deck-list-name');
+      name.value = deck.name; name.maxLength = 100; name.autocomplete = 'off'; name.disabled = Boolean(storageError);
+      name.setAttribute('aria-label', 'デッキ名（Enterで確定）'); name.title = 'クリックして名前を変更';
+      name.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
+        else if (e.key === 'Escape') { name.value = deck.name; name.blur(); }
+      });
+      name.addEventListener('change', () => renameDeck(deck, name));
       const state = C.status(deck);
-      open.append(el('p', 'deck-list-meta', `${state.count}/40枚　${state.label}`));
-      if (deck.coverCardKey) open.append(el('p', 'deck-cover-label', '★ ' + C.title(card)));
-      article.append(open, button('削除', 'deck-delete', () => deleteDeck(deck), deck.name + 'を削除'));
+      const meta = [el('p', 'deck-list-meta', `${state.count}/40枚　${state.label}`)];
+      if (deck.coverCardKey) meta.push(el('p', 'deck-cover-label', '★ ' + C.title(card)));
+      article.append(open, button('削除', 'deck-delete', () => deleteDeck(deck), deck.name + 'を削除'), name, ...meta);
       grid.append(article);
     }
   }
@@ -97,6 +105,21 @@
       C.write(localStorage, current); decks = current; renderList(); feedback('デッキを削除しました。');
     } catch (e) { feedback('削除できませんでした。' + e.message, true); }
   }
+  // Renaming from the list keeps updatedAt so the card does not jump while the user is still looking at it.
+  function renameDeck(deck, input) {
+    const next = input.value.trim();
+    if (!next) { input.value = deck.name; feedback('デッキ名を入力してください。', true); return; }
+    if (next === deck.name) { input.value = next; return; }
+    try {
+      if (storageError) throw new Error(storageError);
+      const current = C.read(localStorage), target = current.find(d => d.id === deck.id);
+      if (!target) throw new Error('デッキが見つかりません。一覧を開き直してください。');
+      target.name = next;
+      C.write(localStorage, current);
+      decks = current; deck.name = next; input.value = next;
+      feedback('デッキ名を変更しました。');
+    } catch (e) { input.value = deck.name; feedback('名前を変更できませんでした。' + e.message, true); }
+  }
   function openEditor(deck) {
     draft = deck ? C.clone(deck) : C.create();
     loadedVersion = deck ? JSON.stringify(deck) : null;
@@ -106,7 +129,7 @@
     $('deck-name').value = draft.name; $('deck-sort').value = draft.sort;
     $('deck-query').value = ''; $('search-input').value = '';
     $('deck-reset-filters').click();
-    feedback(''); renderEditor();
+    feedback(''); setPane('adopted'); renderEditor();
     $('deck-name').focus();
   }
   function resolved(key) { return catalog.get(key) || draft.cardSnapshots[key]; }
@@ -144,6 +167,9 @@
     $('deck-rule-alert').hidden = !many.length;
     $('deck-rule-alert').textContent = many.length ? '同名5枚以上' : '';
     $('deck-rule-alert').title = many.map(([name, n]) => `${name}：${n}枚`).join('\n');
+    $('deck-tab-count').textContent = `${state.count}/40`;
+    $('deck-tab-count').classList.toggle('is-over', state.excess > 0);
+    renderStats();
     const grid = $('deck-copies'); grid.replaceChildren();
     if (!draft.cards.length) grid.append(el('p', 'deck-empty', '右のカードをここにドラッグして追加'));
     for (const copy of C.orderedCopies(draft)) {
@@ -159,7 +185,12 @@
   function updateSearchBadges() {
     if (!draft) return;
     $('deck-search-results').querySelectorAll('[data-card-key]').forEach(node => {
-      node.title = `${C.count(draft, node.dataset.cardKey)}枚採用中。左へドラッグして追加、クリックで詳細`;
+      const n = C.count(draft, node.dataset.cardKey);
+      node.title = `${n}枚採用中。左へドラッグして追加、クリックで詳細`;
+      node.classList.toggle('is-adopted', n > 0);
+      const qty = node.querySelector('.deck-search-qty'), minus = node.querySelector('.deck-step-minus');
+      if (qty) qty.textContent = String(n);
+      if (minus) minus.disabled = n === 0;
     });
   }
   function clearDrag() {
@@ -227,6 +258,82 @@
     try { C.setQuantity(draft, card, n); renderEditor(); refreshQuantity(); feedback(C.title(card) + 'の採用枚数を変更しました。'); }
     catch (e) { feedback(e.message, true); refreshQuantity(); }
   }
+  function stepCard(key, delta) {
+    if (!draft) return;
+    const card = catalog.get(key) || resolved(key), n = C.count(draft, key) + delta;
+    if (!card || n < 0) return;
+    try { C.setQuantity(draft, card, n); renderEditor(); feedback(`${C.title(card)}：${n}枚`); }
+    catch (e) { feedback(e.message, true); }
+  }
+  const CIV_ORDER = ['光', '水', '闇', '火', '自然', 'ゼロ'];
+  function cardFacts(key) {
+    const card = resolved(key) || {};
+    const faces = card._faces || (typeof buildCardFaces === 'function' && card.name ? buildCardFaces(card) : []);
+    const civs = card._civList || [...new Set(faces.flatMap(f => (f.civilizations || []).flatMap(c => String(c).split('/'))).filter(Boolean))];
+    const types = [...new Set(faces.map(f => String(f.card_type || '')).filter(Boolean))];
+    const has = word => types.some(t => t.includes(word));
+    const type = has('クリーチャー') && has('呪文') ? 'ツインパクト' : has('クリーチャー') ? 'クリーチャー' : has('呪文') ? '呪文' : types.length ? 'その他' : '不明';
+    return { cost: C.cost(card), civs, type };
+  }
+  function renderStats() {
+    const box = $('deck-stats');
+    box.replaceChildren();
+    if (!draft || !draft.cards.length) { box.append(el('p', 'deck-stats-empty', 'カードを入れるとコスト分布・文明・種類を表示します。')); return; }
+    const buckets = Array(11).fill(0), civCount = new Map(), typeCount = new Map();
+    let sum = 0, known = 0, multi = 0, unknownCiv = 0;
+    for (const copy of draft.cards) {
+      const f = cardFacts(copy.cardKey);
+      if (f.cost !== Number.MAX_SAFE_INTEGER) { buckets[Math.min(f.cost, 10)]++; sum += f.cost; known++; }
+      if (!f.civs.length) unknownCiv++;
+      if (f.civs.length > 1) multi++;
+      f.civs.forEach(c => civCount.set(c, (civCount.get(c) || 0) + 1));
+      typeCount.set(f.type, (typeCount.get(f.type) || 0) + 1);
+    }
+    const max = Math.max(...buckets, 1);
+    const curve = el('div', 'deck-stat deck-stat-curve');
+    curve.append(el('span', 'deck-stat-label', 'コスト'));
+    const bars = el('div', 'deck-curve');
+    bars.setAttribute('role', 'img');
+    bars.setAttribute('aria-label', 'コスト分布：' + buckets.map((n, i) => `${i === 10 ? '10以上' : i}コスト${n}枚`).join('、'));
+    buckets.forEach((n, i) => {
+      const col = el('div', 'deck-curve-col'); col.title = `${i === 10 ? '10以上' : i}コスト：${n}枚`;
+      const bar = el('span', 'deck-curve-bar'); bar.setAttribute('style', `height:${n ? Math.max(8, n / max * 100) : 0}%`);
+      const track = el('span', 'deck-curve-track'); track.append(bar);
+      col.append(track, el('span', 'deck-curve-x', i === 10 ? '10+' : String(i)));
+      bars.append(col);
+    });
+    curve.append(bars, el('span', 'deck-stat-sub', known ? `平均 ${(sum / known).toFixed(1)}` : '平均 —'));
+    const civ = el('div', 'deck-stat deck-stat-civ');
+    civ.append(el('span', 'deck-stat-label', '文明'));
+    const civList = el('ul', 'deck-civ-counts');
+    const civNames = [...CIV_ORDER.filter(c => civCount.has(c)), ...[...civCount.keys()].filter(c => !CIV_ORDER.includes(c))];
+    civNames.forEach(name => {
+      const li = el('li'), icon = civilizationIcons.find(([n]) => n === name);
+      if (icon) { const img = el('img'); img.src = `images/icon-civ-${icon[1]}.svg`; img.alt = name; li.append(img); }
+      else li.append(el('span', '', name));
+      li.append(el('span', 'deck-civ-n', String(civCount.get(name))));
+      li.title = `${name}：${civCount.get(name)}枚`;
+      civList.append(li);
+    });
+    if (multi) { const li = el('li', 'deck-civ-multi', `多色 ${multi}`); li.title = '2つ以上の文明を持つカード'; civList.append(li); }
+    if (unknownCiv) civList.append(el('li', 'deck-civ-unknown', `不明 ${unknownCiv}`));
+    civ.append(civList);
+    const type = el('div', 'deck-stat deck-stat-type');
+    type.append(el('span', 'deck-stat-label', '種類'));
+    const typeList = el('ul', 'deck-type-counts');
+    ['クリーチャー', '呪文', 'ツインパクト', 'その他', '不明'].filter(t => typeCount.has(t)).forEach(t => {
+      const li = el('li'); li.append(el('span', '', t), el('b', '', String(typeCount.get(t)))); typeList.append(li);
+    });
+    type.append(typeList);
+    box.append(curve, civ, type);
+  }
+  function setPane(pane) {
+    $('deck-workspace').dataset.pane = pane;
+    $('deck-workspace').setAttribute('data-pane', pane);
+    $('deck-tab-adopted').setAttribute('aria-pressed', String(pane === 'adopted'));
+    $('deck-tab-catalog').setAttribute('aria-pressed', String(pane === 'catalog'));
+    if (typeof window.scrollTo === 'function') window.scrollTo(0, 0);
+  }
   function filters() {
     const number = id => $('deck-' + id).value === '' ? NaN : parseInt($('deck-' + id).value, 10);
     const keywords = s => s.trim().split(/\s+/).map(normalizeQuery).filter(Boolean);
@@ -252,7 +359,12 @@
       const add = button('', 'deck-search-add', () => showCard(key), C.title(card) + 'の詳細を表示');
       makeDraggable(add, { kind: 'catalog', key });
       add.append(image(card), el('span', 'deck-search-code', C.snapshot(card).product_code), el('span', 'deck-search-name', C.title(card)));
-      item.append(add);
+      // Steppers are shown only on narrow screens, where dragging between stacked panes is impractical.
+      const steps = el('div', 'deck-search-steps');
+      steps.append(button('−', 'deck-step-btn deck-step-minus', () => stepCard(key, -1), C.title(card) + 'を1枚減らす'),
+        el('span', 'deck-search-qty', '0'),
+        button('＋', 'deck-step-btn deck-step-plus', () => stepCard(key, 1), C.title(card) + 'を1枚増やす'));
+      item.append(add, steps);
       results.append(item);
     });
     updateSearchBadges();
@@ -268,6 +380,13 @@
       const img = el('img'); img.src = `images/icon-civ-${icon}.svg`; img.alt = ''; b.append(img); $('deck-civ-filters').append(b);
     });
     $('deck-create').addEventListener('click', () => openEditor());
+    $('deck-stats-toggle').addEventListener('click', () => {
+      const open = $('deck-stats-toggle').getAttribute('aria-expanded') !== 'true';
+      $('deck-stats-toggle').setAttribute('aria-expanded', String(open));
+      $('deck-stats').hidden = !open;
+    });
+    $('deck-tab-adopted').addEventListener('click', () => setPane('adopted'));
+    $('deck-tab-catalog').addEventListener('click', () => setPane('catalog'));
     $('deck-header-save').addEventListener('click', save);
     $('deck-back').addEventListener('click', () => { if (confirmLeave()) { closeDialog(); openList(); } });
     $('deck-name').addEventListener('input', () => { draft.name = $('deck-name').value; updateSaveState(); });
